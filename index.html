@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cuotas del Barrio</title>
+<link id="gfont-link" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style id="app-styles">
+  :root{
+    --bg:#EEF1EA; --surface:#FFFFFF; --surface-2:#F5F6F0; --border:#DBE0D5;
+    --ink:#202822; --ink-soft:#5C6A5C; --ink-faint:#8A9689;
+    --primary:#1F5C55; --primary-ink:#FFFFFF; --primary-soft:#DCEAE6;
+    --accent:#B9791F; --accent-soft:#F3E4C6;
+    --ok-bg:#DEEEE1; --ok-fg:#1F6B3F;
+    --pending-bg:#F7E7C6; --pending-fg:#8A5A10;
+    --neutral-bg:#E7E9E2; --neutral-fg:#68705F;
+    --danger:#A6402A; --danger-soft:#F4DED7;
+    --shadow: 0 1px 2px rgba(32,40,34,0.06), 0 4px 14px rgba(32,40,34,0.06);
+    --radius: 14px;
+    --font-display:'Fraunces', Georgia, 'Times New Roman', serif;
+    --font-body:'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono:'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#12160F; --surface:#1A2018; --surface-2:#20261D; --border:#323B2E;
+      --ink:#E9EDE4; --ink-soft:#A9B4A2; --ink-faint:#77826F;
+      --primary:#6FCBB6; --primary-ink:#0C1613; --primary-soft:#1E3733;
+      --accent:#E3AC53; --accent-soft:#3A2E14;
+      --ok-bg:#1D3A28; --ok-fg:#7FDBA3;
+      --pending-bg:#3D3115; --pending-fg:#F0C271;
+      --neutral-bg:#262C22; --neutral-fg:#9AA491;
+      --danger:#E28066; --danger-soft:#3A241D;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.28);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#12160F; --surface:#1A2018; --surface-2:#20261D; --border:#323B2E;
+    --ink:#E9EDE4; --ink-soft:#A9B4A2; --ink-faint:#77826F;
+    --primary:#6FCBB6; --primary-ink:#0C1613; --primary-soft:#1E3733;
+    --accent:#E3AC53; --accent-soft:#3A2E14;
+    --ok-bg:#1D3A28; --ok-fg:#7FDBA3;
+    --pending-bg:#3D3115; --pending-fg:#F0C271;
+    --neutral-bg:#262C22; --neutral-fg:#9AA491;
+    --danger:#E28066; --danger-soft:#3A241D;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.28);
+  }
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--font-body); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  img{ max-width:100%; }
+  [hidden]{ display:none !important; }
+  h1,h2,h3{ font-family:var(--font-display); font-weight:600; margin:0; text-wrap:balance; }
+  a{ color:inherit; }
+  button, input, select, textarea{ font-family:inherit; font-size:inherit; color:inherit; }
+  input, select, textarea{
+    width:100%; background:var(--surface); border:1px solid var(--border); border-radius:9px;
+    padding:.6em .7em; color:var(--ink);
+  }
+  input:focus, select:focus, textarea:focus, button:focus-visible{
+    outline:2px solid var(--accent); outline-offset:1px;
+  }
+  .tabular{ font-variant-numeric: tabular-nums; font-family:var(--font-mono); }
+
+  .shell{ max-width:960px; margin:0 auto; padding:1.25rem 1rem 4rem; }
+  .topbar{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:1rem;
+    margin-bottom:1.5rem; flex-wrap:wrap;
+  }
+  .brand h1{ font-size:1.5rem; letter-spacing:-0.01em; }
+  .brand p{ margin:.2rem 0 0; color:var(--ink-soft); font-size:.88rem; }
+  .save-pill{
+    display:inline-flex; align-items:center; gap:.4em; font-size:.78rem; padding:.35em .7em;
+    border-radius:99px; background:var(--surface); border:1px solid var(--border); color:var(--ink-soft);
+    white-space:nowrap;
+  }
+  .save-pill .dot{ width:.5em; height:.5em; border-radius:50%; background:var(--ink-faint); flex:none; }
+  .save-pill.ok .dot{ background:var(--primary); }
+  .save-pill.local .dot{ background:var(--accent); }
+  .save-pill.saving .dot{ background:var(--accent); animation:pulse 1s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce){ .save-pill.saving .dot{ animation:none; } }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:.75rem; margin-bottom:1.75rem; }
+  .stat{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:1rem 1.1rem; box-shadow:var(--shadow);
+  }
+  .stat .label{ font-size:.76rem; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); }
+  .stat .value{ font-family:var(--font-mono); font-size:1.6rem; font-weight:600; margin-top:.3rem; letter-spacing:-0.01em; }
+  .stat .sub{ font-size:.8rem; color:var(--ink-faint); margin-top:.15rem; }
+  .stat.accent .value{ color:var(--primary); }
+
+  .section-head{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:.85rem; }
+  .section-head h2{ font-size:1.15rem; }
+  .count-badge{ color:var(--ink-soft); font-size:.85rem; font-weight:400; font-family:var(--font-body); margin-left:.4em; }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:.4em;
+    border:1px solid transparent; border-radius:9px; padding:.6em 1em; font-weight:600;
+    cursor:pointer; font-size:.88rem; line-height:1.2;
+  }
+  .btn-primary{ background:var(--primary); color:var(--primary-ink); }
+  .btn-primary:hover{ filter:brightness(1.06); }
+  .btn-ghost{ background:transparent; border-color:var(--border); color:var(--ink); }
+  .btn-ghost:hover{ background:var(--surface-2); }
+  .btn-danger{ background:transparent; border-color:var(--danger); color:var(--danger); }
+  .btn-danger:hover{ background:var(--danger-soft); }
+  .btn-sm{ padding:.4em .75em; font-size:.8rem; }
+  .btn-icon{ padding:.4em; }
+  .btn[disabled]{ opacity:.55; cursor:default; }
+  .btn svg{ width:1em; height:1em; flex:none; }
+
+  .card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); }
+  .card-pad{ padding:1.1rem 1.2rem; }
+
+  .house-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(255px,1fr)); gap:.85rem; }
+  .house-card{
+    display:block; text-decoration:none; color:inherit;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:1rem 1.1rem; box-shadow:var(--shadow); cursor:pointer;
+  }
+  .house-card:hover{ border-color:var(--primary); }
+  .house-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:.6rem; }
+  .house-top h3{ font-size:1.05rem; }
+  .house-addr{ color:var(--ink-soft); font-size:.85rem; margin-top:.15rem; }
+  .house-meta{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:.9rem; gap:.5rem; }
+  .house-cuota{ font-family:var(--font-mono); font-size:.95rem; }
+  .house-cuota .cap{ display:block; font-size:.72rem; color:var(--ink-faint); font-family:var(--font-body); text-transform:uppercase; letter-spacing:.05em; }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:.35em; font-size:.74rem; font-weight:600;
+    padding:.28em .65em; border-radius:99px; white-space:nowrap;
+  }
+  .pill svg{ width:.85em; height:.85em; }
+  .pill-ok{ background:var(--ok-bg); color:var(--ok-fg); }
+  .pill-pending{ background:var(--pending-bg); color:var(--pending-fg); }
+  .pill-neutral{ background:var(--neutral-bg); color:var(--neutral-fg); }
+
+  .empty{ text-align:center; padding:2.5rem 1rem; color:var(--ink-soft); border:1px dashed var(--border); border-radius:var(--radius); }
+  .empty p{ margin:.35rem 0 0; }
+
+  form.panel{ margin-top:.85rem; }
+  .field-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:.75rem; }
+  .field label{ display:block; font-size:.78rem; color:var(--ink-soft); margin-bottom:.3rem; }
+  .field{ margin-bottom:0; }
+  .form-actions{ display:flex; gap:.6rem; margin-top:1rem; flex-wrap:wrap; }
+  .hint{ font-size:.78rem; color:var(--ink-faint); margin-top:.3rem; }
+  .field-error{ color:var(--danger); font-size:.83rem; margin-top:.7rem; }
+  .house-rut{ color:var(--ink-faint); font-size:.78rem; font-family:var(--font-mono); margin-top:.2rem; }
+
+  .back-link{ display:inline-flex; align-items:center; gap:.4em; color:var(--ink-soft); text-decoration:none; font-size:.88rem; margin-bottom:1rem; }
+  .back-link:hover{ color:var(--ink); }
+  .back-link svg{ width:1em; height:1em; }
+
+  .detail-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1rem; }
+  .detail-head h1{ font-size:1.6rem; }
+  .info-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:.9rem; }
+  .info-row .k{ font-size:.74rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); }
+  .info-row .v{ margin-top:.15rem; }
+
+  .pay-table{ display:flex; flex-direction:column; gap:.4rem; margin-top:.9rem; }
+  .pay-row{
+    display:grid; grid-template-columns:100px 130px 110px 1fr 34px; gap:.7rem; align-items:center;
+    padding:.6rem .7rem; border-radius:9px; background:var(--surface-2);
+  }
+  .pay-row.head{ background:transparent; padding:.2rem .7rem; color:var(--ink-faint); font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; }
+  .pay-note{ color:var(--ink-soft); font-size:.85rem; overflow-wrap:anywhere; }
+  @media (max-width:620px){
+    .pay-row{ grid-template-columns:1fr 1fr; grid-auto-flow:row; row-gap:.25rem; position:relative; padding:.75rem .8rem; }
+    .pay-row.head{ display:none; }
+    .pay-row > *{ display:flex; flex-direction:column; }
+    .pay-row > *::before{ content:attr(data-label); font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); }
+    .pay-row .pay-del{ position:absolute; top:.6rem; right:.6rem; }
+  }
+  .pay-del{ display:flex; align-items:center; justify-content:center; }
+
+  .confirm-row{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+  .toast{
+    position:fixed; left:50%; bottom:1.2rem; transform:translateX(-50%);
+    background:var(--ink); color:var(--bg); padding:.65em 1.1em; border-radius:9px;
+    font-size:.85rem; box-shadow:var(--shadow); z-index:50; max-width:90vw; text-align:center;
+  }
+  :root[data-theme="dark"] .toast, :root:not([data-theme="light"]) .toast{ background:var(--surface); color:var(--ink); border:1px solid var(--border); }
+  @media (prefers-color-scheme: dark){ .toast{ background:var(--surface); color:var(--ink); border:1px solid var(--border); } }
+
+  .readonly-banner{
+    background:var(--pending-bg); color:var(--pending-fg); border-radius:9px; padding:.6em .9em;
+    font-size:.85rem; margin-bottom:1rem;
+  }
+
+  .auth-card{ max-width:360px; margin:2rem auto 0; }
+  .auth-card .hint{ font-size:.85rem; }
+
+  .months-strip{ display:grid; grid-template-columns:repeat(6,1fr); gap:.4rem; margin-top:.4rem; }
+  .month-chip{
+    display:flex; flex-direction:column; align-items:center; gap:.3rem; padding:.55rem .3rem;
+    border-radius:9px; font-size:.7rem; text-transform:uppercase; letter-spacing:.03em; font-weight:600;
+  }
+  .month-chip.paid{ background:var(--ok-bg); color:var(--ok-fg); }
+  .month-chip.unpaid{ background:var(--pending-bg); color:var(--pending-fg); }
+  .month-chip .mc-icon svg{ width:1.1em; height:1.1em; }
+  @media (max-width:480px){ .months-strip{ grid-template-columns:repeat(3,1fr); } }
+
+  .month-picker{ display:grid; grid-template-columns:repeat(6,1fr); gap:.4rem; margin-top:.3rem; }
+  .month-pick-chip{
+    position:relative; display:flex; align-items:center; justify-content:center;
+    padding:.55rem .3rem; border-radius:9px; border:1px solid var(--border); background:var(--surface-2);
+    font-size:.72rem; text-transform:uppercase; letter-spacing:.03em; font-weight:600; cursor:pointer; user-select:none;
+  }
+  .month-pick-chip input{ position:absolute; opacity:0; width:1px; height:1px; }
+  .month-pick-chip:has(input:checked){ background:var(--primary); color:var(--primary-ink); border-color:var(--primary); }
+  .month-pick-chip:has(input:focus-visible){ outline:2px solid var(--accent); outline-offset:2px; }
+  @media (max-width:480px){ .month-picker{ grid-template-columns:repeat(3,1fr); } }
+</style>
+</head>
+<body>
+<div class="shell" id="root"></div>
+<script type="application/json" id="app-state">{"meta":{"currency":"CLP","updatedAt":"2026-09-02T02:09:53.968Z","adminPasswordHash":"d48f650c9b96e0b89fbbbcf3f5fff9ae6a1a998d48f76c34b7b62e92e50c32e9"},"houses":[{"id":"idmtgpz4ksk7vvm0","numero":"12","direccion":"campiña","responsable":"eduardo","telefono":"972141657","cuota":15000,"payments":[{"id":"idmtgpzbtngq20cd","fecha":"2026-08-31","periodo":"2026-08","monto":15000,"nota":""},{"id":"idmtgq049tz1su6g","fecha":"2026-09-26","periodo":"2026-08","monto":12000,"nota":""}]},{"id":"idmtjgkoj49ess40","numero":"qwe","rut":"15567265-K","direccion":"23","responsable":"23","telefono":"","cuota":243433,"payments":[]}]}</script>
+<script>
+(function(){
+  "use strict";
+  var SCRIPT_TEXT = document.currentScript.textContent;
+
+  /* ---------- state ---------- */
+  var stateEl = document.getElementById('app-state');
+  var STATE = null;
+  try{ STATE = JSON.parse(stateEl.textContent); }catch(e){ STATE = { meta:{currency:'CLP'}, houses:[] }; }
+
+  var artifactNS = null;
+  var artifactChecked = false;
+  var readOnly = false;
+  var ui = {
+    addOpen:false, editingHouse:null, confirmDeleteHouse:null, confirmDeletePayment:null, saving:false,
+    formError:null, authError:null, changePwOpen:false, changePwError:null,
+    importPending:null, importError:null,
+    consulta:{ rut:'', status:'idle', houseId:null, message:'' }
+  };
+
+  var LS_KEY = 'cuotas-barrio-state-v1';
+  var AUTH_KEY = 'cuotas-barrio-admin-unlocked-v1';
+  var auth = { unlocked:false };
+  try{ auth.unlocked = sessionStorage.getItem(AUTH_KEY)==='1'; }catch(e){ auth.unlocked = false; }
+
+  function sha256Hex(str){
+    try{
+      var enc = new TextEncoder().encode(String(str));
+      return crypto.subtle.digest('SHA-256', enc).then(function(buf){
+        var bytes = new Uint8Array(buf), hex = '';
+        for(var i=0;i<bytes.length;i++){ hex += bytes[i].toString(16).padStart(2,'0'); }
+        return hex;
+      });
+    }catch(e){
+      return Promise.resolve(null);
+    }
+  }
+
+  function loadLocalFallback(){
+    try{
+      var raw = localStorage.getItem(LS_KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        if(parsed && Array.isArray(parsed.houses)) return parsed;
+      }
+    }catch(e){}
+    return null;
+  }
+  function saveLocalFallback(state){
+    try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  /* ---------- helpers ---------- */
+  function uid(){ return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+  function escapeHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function fmtMoney(n){
+    n = Number(n)||0;
+    try{
+      return new Intl.NumberFormat('es-CL', {style:'currency', currency: (STATE.meta&&STATE.meta.currency)||'CLP', maximumFractionDigits:0}).format(n);
+    }catch(e){ return '$' + Math.round(n).toString(); }
+  }
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  function pad(n){ return n<10 ? '0'+n : ''+n; }
+  function currentMonthKey(){
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1);
+  }
+  function monthLabel(periodo){
+    if(!periodo) return '';
+    var parts = periodo.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1])-1, 1);
+    var s = new Intl.DateTimeFormat('es-CL', {month:'long', year:'numeric'}).format(d);
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function dateLabel(iso){
+    if(!iso) return '';
+    var parts = iso.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+    return new Intl.DateTimeFormat('es-CL', {day:'2-digit', month:'short', year:'numeric'}).format(d);
+  }
+  function houseTotal(h){
+    return (h.payments||[]).reduce(function(sum,p){ return sum + (Number(p.monto)||0); }, 0);
+  }
+  function monthsCovered(h){
+    var set = {};
+    (h.payments||[]).forEach(function(p){ if(p.periodo) set[p.periodo]=true; });
+    return Object.keys(set).sort();
+  }
+  function houseStatus(h){
+    var mc = monthsCovered(h);
+    if(mc.length===0) return 'sin-pagos';
+    return mc.indexOf(currentMonthKey())>=0 ? 'al-dia' : 'pendiente';
+  }
+  function sortedPayments(h){
+    return (h.payments||[]).slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); });
+  }
+  function getHouse(id){
+    return STATE.houses.find(function(h){ return h.id===id; });
+  }
+  function monthsOfYear(year){
+    var out = [];
+    for(var m=1;m<=12;m++){ out.push(year + '-' + pad(m)); }
+    return out;
+  }
+  function monthShortLabel(periodo){
+    var parts = periodo.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1])-1, 1);
+    var s = new Intl.DateTimeFormat('es-CL', {month:'short'}).format(d).replace('.','');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function monthsStatusStrip(h){
+    var covered = {};
+    monthsCovered(h).forEach(function(m){ covered[m] = true; });
+    var year = new Date().getFullYear();
+    var months = monthsOfYear(year);
+    return (
+      '<div class="hint" style="margin-top:1rem;">Cuotas '+year+'</div>'+
+      '<div class="months-strip">' + months.map(function(m){
+        var paid = !!covered[m];
+        return (
+          '<div class="month-chip '+(paid?'paid':'unpaid')+'">'+
+            '<span class="mc-icon">'+(paid?ICON.check:ICON.dash)+'</span>'+
+            '<span class="mc-label">'+escapeHtml(monthShortLabel(m))+'</span>'+
+          '</div>'
+        );
+      }).join('') + '</div>'
+    );
+  }
+  function monthPickerHtml(name, selectedList){
+    var year = new Date().getFullYear();
+    var months = monthsOfYear(year);
+    return '<div class="month-picker">' + months.map(function(m){
+      var checked = selectedList.indexOf(m)>=0;
+      return (
+        '<label class="month-pick-chip">'+
+          '<input type="checkbox" name="'+name+'" value="'+m+'"'+(checked?' checked':'')+'>'+
+          '<span>'+escapeHtml(monthShortLabel(m))+'</span>'+
+        '</label>'
+      );
+    }).join('') + '</div>';
+  }
+
+  /* ---------- RUT (Chilean national ID) ---------- */
+  function normalizeRut(input){
+    if(!input) return '';
+    var clean = String(input).toUpperCase().replace(/[^0-9K]/g, '');
+    if(clean.length < 2) return '';
+    return clean.slice(0, -1) + '-' + clean.slice(-1);
+  }
+  function computeRutDV(body){
+    var sum = 0, mul = 2;
+    for(var i = body.length - 1; i >= 0; i--){
+      sum += parseInt(body.charAt(i), 10) * mul;
+      mul = mul === 7 ? 2 : mul + 1;
+    }
+    var res = 11 - (sum % 11);
+    if(res === 11) return '0';
+    if(res === 10) return 'K';
+    return String(res);
+  }
+  function isValidRut(normalized){
+    if(!normalized) return false;
+    var parts = normalized.split('-');
+    var body = parts[0], dv = parts[1];
+    if(!body || !dv || !/^[0-9]+$/.test(body)) return false;
+    return computeRutDV(body) === dv;
+  }
+  function formatRutDisplay(normalized){
+    if(!normalized) return '';
+    var parts = normalized.split('-');
+    var body = parts[0], dv = parts[1];
+    var withDots = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return withDots + '-' + dv;
+  }
+  function findHouseByRut(normalized){
+    return STATE.houses.find(function(h){ return h.rut===normalized; });
+  }
+  function validateHouseForm(data, excludeId){
+    if(!data.numero || !data.numero.trim()) return { ok:false, message:'Ingresa el número o nombre de la casa.' };
+    if(!data.responsable || !data.responsable.trim()) return { ok:false, message:'Ingresa el nombre del responsable.' };
+    if(data.cuota==='' || isNaN(Number(data.cuota)) || Number(data.cuota)<0) return { ok:false, message:'Ingresa una cuota mensual válida.' };
+    var normalizedRut = normalizeRut(data.rut||'');
+    if(!isValidRut(normalizedRut)) return { ok:false, message:'El RUT ingresado no es válido. Revisa el número y el dígito verificador (ej: 12.345.678-5).' };
+    var dupe = STATE.houses.some(function(h){ return h.rut===normalizedRut && h.id!==excludeId; });
+    if(dupe) return { ok:false, message:'Ya hay una casa registrada con ese RUT.' };
+    return { ok:true, rut:normalizedRut };
+  }
+
+  /* ---------- icons ---------- */
+  var ICON = {
+    check:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10l4 4 8-8"/></svg>',
+    clock:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.2"/><path d="M10 6v4l3 2"/></svg>',
+    dash:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 10h10"/></svg>',
+    arrowLeft:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l-6 6 6 6"/><path d="M6 10h10"/></svg>',
+    trash:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12"/><path d="M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6"/><path d="M5.5 6l.6 9.4A1.5 1.5 0 0 0 7.6 17h4.8a1.5 1.5 0 0 0 1.5-1.6L14.5 6"/></svg>',
+    plus:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>',
+    download:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9"/><path d="M6.5 8.5L10 12l3.5-3.5"/><path d="M4 14.5v1a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>',
+    upload:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12V3"/><path d="M6.5 6.5L10 3l3.5 3.5"/><path d="M4 14.5v1a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>'
+  };
+  function statusPill(status){
+    if(status==='al-dia') return '<span class="pill pill-ok">'+ICON.check+' Al día</span>';
+    if(status==='pendiente') return '<span class="pill pill-pending">'+ICON.clock+' Pendiente</span>';
+    return '<span class="pill pill-neutral">'+ICON.dash+' Sin pagos</span>';
+  }
+  function savePillHtml(){
+    if(ui.saving) return '<span class="save-pill saving"><span class="dot"></span> Guardando…</span>';
+    if(!artifactChecked) return '<span class="save-pill"><span class="dot"></span> Conectando…</span>';
+    if(artifactNS && !readOnly) return '<span class="save-pill ok"><span class="dot"></span> Guardado en el panel</span>';
+    if(readOnly) return '<span class="save-pill local"><span class="dot"></span> Solo lectura</span>';
+    return '<span class="save-pill local"><span class="dot"></span> Guardado en este navegador</span>';
+  }
+
+  /* ---------- views ---------- */
+  function renderHome(){
+    var houses = STATE.houses;
+    var totalHist = houses.reduce(function(s,h){ return s + houseTotal(h); }, 0);
+    var mKey = currentMonthKey();
+    var totalMes = houses.reduce(function(s,h){
+      return s + (h.payments||[]).filter(function(p){ return p.periodo===mKey; }).reduce(function(s2,p){ return s2+(Number(p.monto)||0); },0);
+    }, 0);
+    var alDia = houses.filter(function(h){ return houseStatus(h)==='al-dia'; }).length;
+
+    var statsHtml =
+      '<div class="stats">'+
+        '<div class="stat accent"><div class="label">Recaudado en total</div><div class="value tabular">'+fmtMoney(totalHist)+'</div><div class="sub">'+houses.length+' casa'+(houses.length===1?'':'s')+' registrada'+(houses.length===1?'':'s')+'</div></div>'+
+        '<div class="stat"><div class="label">Recaudado '+escapeHtml(monthLabel(mKey))+'</div><div class="value tabular">'+fmtMoney(totalMes)+'</div><div class="sub">este mes</div></div>'+
+        '<div class="stat"><div class="label">Casas al día</div><div class="value tabular">'+alDia+' / '+houses.length+'</div><div class="sub">'+(houses.length-alDia)+' pendiente'+((houses.length-alDia)===1?'':'s')+'</div></div>'+
+      '</div>';
+
+    var gridHtml;
+    if(houses.length===0){
+      gridHtml = '<div class="empty"><p><strong>Aún no hay casas registradas.</strong></p><p>Agrega la primera casa con el formulario de abajo para empezar a llevar el registro de cuotas.</p></div>';
+    } else {
+      var sorted = houses.slice().sort(function(a,b){ return (a.numero||'').localeCompare(b.numero||'', 'es', {numeric:true}); });
+      gridHtml = '<div class="house-grid">' + sorted.map(function(h){
+        var status = houseStatus(h);
+        var mc = monthsCovered(h);
+        var last = mc.length ? monthLabel(mc[mc.length-1]) : null;
+        return (
+          '<div class="house-card" data-action="open-house" data-house="'+h.id+'" role="link" tabindex="0">'+
+            '<div class="house-top"><h3>'+escapeHtml(h.numero)+'</h3>'+statusPill(status)+'</div>'+
+            (h.direccion ? '<div class="house-addr">'+escapeHtml(h.direccion)+'</div>' : '')+
+            (h.responsable ? '<div class="house-addr">'+escapeHtml(h.responsable)+'</div>' : '')+
+            (h.rut ? '<div class="house-rut">RUT '+escapeHtml(formatRutDisplay(h.rut))+'</div>' : '')+
+            '<div class="house-meta">'+
+              '<div class="house-cuota"><span class="cap">Cuota</span>'+fmtMoney(h.cuota)+'</div>'+
+              (status!=='al-dia'
+                ? '<button type="button" class="btn btn-primary btn-sm" data-action="quick-pay" data-house="'+h.id+'" data-stop="1">'+ICON.check+' Registrar este mes</button>'
+                : '<span class="hint">Último: '+escapeHtml(last||'—')+'</span>')+
+            '</div>'+
+          '</div>'
+        );
+      }).join('') + '</div>';
+    }
+
+    var addErr = (ui.formError && ui.formError.form==='add-house') ? ui.formError : null;
+    var addVals = (addErr && addErr.values) ? addErr.values : {};
+    var addCuotaVal = addErr ? (addVals.cuota||'') : (STATE.meta.cuotaDefault||'');
+    var addFormHtml =
+      '<div class="card card-pad panel" '+(ui.addOpen?'':'hidden')+' id="add-house-panel">'+
+        '<form data-action="add-house">'+
+          '<div class="field-grid">'+
+            '<div class="field"><label for="f-numero">Casa / N° *</label><input id="f-numero" name="numero" required placeholder="Casa 12" value="'+escapeHtml(addVals.numero||'')+'"></div>'+
+            '<div class="field"><label for="f-rut">RUT del propietario *</label><input id="f-rut" name="rut" required placeholder="12.345.678-5" value="'+escapeHtml(addVals.rut||'')+'"></div>'+
+            '<div class="field"><label for="f-direccion">Dirección</label><input id="f-direccion" name="direccion" placeholder="Los Aromos 245" value="'+escapeHtml(addVals.direccion||'')+'"></div>'+
+            '<div class="field"><label for="f-responsable">Responsable *</label><input id="f-responsable" name="responsable" required placeholder="Nombre del vecino" value="'+escapeHtml(addVals.responsable||'')+'"></div>'+
+            '<div class="field"><label for="f-telefono">Teléfono</label><input id="f-telefono" name="telefono" placeholder="+56 9…" inputmode="tel" value="'+escapeHtml(addVals.telefono||'')+'"></div>'+
+            '<div class="field"><label for="f-cuota">Cuota mensual *</label><input id="f-cuota" name="cuota" type="number" min="0" step="1" required placeholder="15000" inputmode="numeric" value="'+escapeHtml(addCuotaVal)+'"></div>'+
+          '</div>'+
+          '<div class="hint">La cuota se completa automáticamente con la cuota vecinal configurada arriba; puedes cambiarla para esta casa si corresponde.</div>'+
+          (addErr ? '<div class="field-error">'+escapeHtml(addErr.message)+'</div>' : '')+
+          '<div class="form-actions">'+
+            '<button type="submit" class="btn btn-primary">Guardar casa</button>'+
+            '<button type="button" class="btn btn-ghost" data-action="toggle-add-form">Cancelar</button>'+
+          '</div>'+
+        '</form>'+
+      '</div>';
+
+    var cuotaDefaultHtml = readOnly ? '' :
+      '<div class="card card-pad" style="display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">'+
+        '<div style="flex:1;min-width:220px;"><div style="font-weight:600;">Cuota vecinal mensual</div>'+
+        '<div class="hint" style="margin-top:.2rem;">Se usa como monto automático al agregar una casa nueva y al registrar un pago sin monto.</div></div>'+
+        '<form data-action="set-cuota-default" style="display:flex;gap:.5rem;align-items:flex-end;">'+
+          '<div class="field" style="width:150px;"><label for="cuota-default">Monto</label><input id="cuota-default" name="cuotaDefault" type="number" min="0" step="1" value="'+escapeHtml(STATE.meta.cuotaDefault||'')+'" inputmode="numeric" placeholder="15000"></div>'+
+          '<button type="submit" class="btn btn-ghost btn-sm">Guardar</button>'+
+        '</form>'+
+      '</div>';
+
+    var backupHtml = '';
+    if(!readOnly){
+      backupHtml =
+        '<div class="card card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:'+(ui.importPending||ui.importError?'.6rem':'1.5rem')+';">'+
+          '<div><div style="font-weight:600;">Respaldo de datos</div>'+
+          '<div class="hint" style="margin-top:.2rem;">Descarga un archivo con todos los datos del sistema (casas y pagos), o recupera un respaldo guardado anteriormente.</div></div>'+
+          '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="export-data">'+ICON.download+' Exportar datos</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="trigger-import">'+ICON.upload+' Recuperar datos</button>'+
+            '<input type="file" id="import-file-input" accept="application/json,.json" hidden>'+
+          '</div>'+
+        '</div>'+
+        (ui.importError ? '<div class="field-error" style="margin:-.4rem 0 1.1rem;">'+escapeHtml(ui.importError)+'</div>' : '')+
+        (ui.importPending ? (
+          '<div class="card card-pad" style="margin-bottom:1.5rem;border-color:var(--accent);">'+
+            '<div class="hint" style="margin-bottom:.6rem;">Se encontraron '+(ui.importPending.houses?ui.importPending.houses.length:0)+' casa(s) en el archivo. Esto reemplazará todos los datos actuales del sistema. ¿Continuar?</div>'+
+            '<div class="form-actions" style="margin-top:0;">'+
+              '<button type="button" class="btn btn-primary btn-sm" data-action="confirm-import">Sí, reemplazar datos</button>'+
+              '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-import">Cancelar</button>'+
+            '</div>'+
+          '</div>'
+        ) : '');
+    }
+
+    var consultaLink = location.href.split('#')[0] + '#/consulta';
+    var portalBanner =
+      '<div class="card card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">'+
+        '<div><div style="font-weight:600;">Portal para vecinos</div>'+
+        '<div class="hint" style="margin-top:.2rem;">Comparte este enlace para que cada vecino consulte el estado de su cuota ingresando su RUT.</div></div>'+
+        '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+
+          '<a href="#/consulta" class="btn btn-ghost btn-sm">Ver portal</a>'+
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="copy-consulta-link" data-link="'+escapeHtml(consultaLink)+'">Copiar enlace</button>'+
+        '</div>'+
+      '</div>';
+
+    var changePwHtml = '';
+    if(!readOnly){
+      changePwHtml =
+        '<div class="card card-pad panel" '+(ui.changePwOpen?'':'hidden')+' style="margin-bottom:1.5rem;">'+
+          '<form data-action="change-password">'+
+            '<div class="field-grid">'+
+              '<div class="field"><label for="cp-new">Nueva contraseña</label><input id="cp-new" name="password" type="password" required autocomplete="new-password"></div>'+
+              '<div class="field"><label for="cp-confirm">Confirmar contraseña</label><input id="cp-confirm" name="confirm" type="password" required autocomplete="new-password"></div>'+
+            '</div>'+
+            (ui.changePwError ? '<div class="field-error">'+escapeHtml(ui.changePwError)+'</div>' : '')+
+            '<div class="form-actions">'+
+              '<button type="submit" class="btn btn-primary">Guardar contraseña</button>'+
+              '<button type="button" class="btn btn-ghost" data-action="toggle-change-pw">Cancelar</button>'+
+            '</div>'+
+          '</form>'+
+        '</div>';
+    }
+
+    return (
+      '<header class="topbar">'+
+        '<div class="brand"><h1>Cuotas del Barrio</h1><p>Panel de cuotas vecinales</p></div>'+
+        '<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">'+
+          savePillHtml()+
+          (readOnly ? '' : '<button type="button" class="btn btn-ghost btn-sm" data-action="toggle-change-pw">Cambiar contraseña</button>')+
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
+        '</div>'+
+      '</header>'+
+      (readOnly ? '<div class="readonly-banner">Estás viendo este panel en modo solo lectura: tus cambios no se pueden guardar aquí.</div>' : '')+
+      changePwHtml+
+      backupHtml+
+      cuotaDefaultHtml+
+      portalBanner+
+      statsHtml+
+      '<div class="section-head"><h2>Casas<span class="count-badge">'+houses.length+'</span></h2>'+
+        (readOnly ? '' : '<button type="button" class="btn btn-primary btn-sm" data-action="toggle-add-form">'+ICON.plus+' Agregar casa</button>')+
+      '</div>'+
+      gridHtml+
+      (readOnly ? '' : addFormHtml)
+    );
+  }
+
+  function renderHouseDetail(id){
+    var h = getHouse(id);
+    if(!h){
+      return (
+        '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">'+
+          '<a href="#/" class="back-link" style="margin-bottom:1rem;">'+ICON.arrowLeft+' Volver al panel</a>'+
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
+        '</div>'+
+        '<div class="empty"><p>No se encontró esa casa.</p></div>'
+      );
+    }
+    var status = houseStatus(h);
+    var editing = ui.editingHouse===h.id;
+    var pays = sortedPayments(h);
+
+    var infoHtml;
+    if(editing){
+      var editErr = (ui.formError && ui.formError.form==='edit-house') ? ui.formError : null;
+      var editVals = (editErr && editErr.values) ? editErr.values : null;
+      infoHtml =
+        '<form data-action="edit-house" data-house="'+h.id+'" class="panel">'+
+          '<div class="field-grid">'+
+            '<div class="field"><label for="e-numero">Casa / N° *</label><input id="e-numero" name="numero" required value="'+escapeHtml(editVals?editVals.numero:h.numero)+'"></div>'+
+            '<div class="field"><label for="e-rut">RUT del propietario *</label><input id="e-rut" name="rut" required placeholder="12.345.678-5" value="'+escapeHtml(editVals?editVals.rut:formatRutDisplay(h.rut))+'"></div>'+
+            '<div class="field"><label for="e-direccion">Dirección</label><input id="e-direccion" name="direccion" value="'+escapeHtml(editVals?editVals.direccion:(h.direccion||''))+'"></div>'+
+            '<div class="field"><label for="e-responsable">Responsable *</label><input id="e-responsable" name="responsable" required value="'+escapeHtml(editVals?editVals.responsable:(h.responsable||''))+'"></div>'+
+            '<div class="field"><label for="e-telefono">Teléfono</label><input id="e-telefono" name="telefono" value="'+escapeHtml(editVals?editVals.telefono:(h.telefono||''))+'" inputmode="tel"></div>'+
+            '<div class="field"><label for="e-cuota">Cuota mensual *</label><input id="e-cuota" name="cuota" type="number" min="0" step="1" required value="'+escapeHtml(editVals?editVals.cuota:h.cuota)+'" inputmode="numeric"></div>'+
+          '</div>'+
+          (editErr ? '<div class="field-error">'+escapeHtml(editErr.message)+'</div>' : '')+
+          '<div class="form-actions">'+
+            '<button type="submit" class="btn btn-primary">Guardar cambios</button>'+
+            '<button type="button" class="btn btn-ghost" data-action="cancel-edit-house">Cancelar</button>'+
+          '</div>'+
+        '</form>';
+    } else {
+      infoHtml =
+        '<div class="info-row">'+
+          '<div><div class="k">RUT</div><div class="v tabular">'+escapeHtml(formatRutDisplay(h.rut)||'—')+'</div></div>'+
+          '<div><div class="k">Dirección</div><div class="v">'+escapeHtml(h.direccion||'—')+'</div></div>'+
+          '<div><div class="k">Responsable</div><div class="v">'+escapeHtml(h.responsable||'—')+'</div></div>'+
+          '<div><div class="k">Teléfono</div><div class="v">'+escapeHtml(h.telefono||'—')+'</div></div>'+
+          '<div><div class="k">Cuota mensual</div><div class="v tabular">'+fmtMoney(h.cuota)+'</div></div>'+
+        '</div>'+
+        (readOnly ? '' : '<div class="form-actions"><button type="button" class="btn btn-ghost btn-sm" data-action="start-edit-house" data-house="'+h.id+'">Editar datos</button></div>');
+    }
+
+    var payErr = (ui.formError && ui.formError.form==='add-payment') ? ui.formError : null;
+    var payVals = (payErr && payErr.values) ? payErr.values : {};
+    var payPeriodos = payErr ? (payErr.periodos||[]) : [currentMonthKey()];
+    var payFormHtml = readOnly ? '' :
+      '<div class="card card-pad" style="margin-top:1.1rem;">'+
+        '<h2 style="font-size:1rem;margin-bottom:.4rem;">Registrar pago</h2>'+
+        '<form data-action="add-payment" data-house="'+h.id+'">'+
+          '<div class="field" style="margin-bottom:1rem;">'+
+            '<label>Mes(es) que cubre *</label>'+
+            monthPickerHtml('periodos', payPeriodos)+
+          '</div>'+
+          '<div class="field-grid">'+
+            '<div class="field"><label for="p-fecha">Fecha de pago</label><input id="p-fecha" name="fecha" type="date" value="'+escapeHtml(payVals.fecha||todayISO())+'" required></div>'+
+            '<div class="field"><label for="p-monto">Monto (opcional)</label><input id="p-monto" name="monto" type="number" min="0" step="1" value="'+escapeHtml(payVals.monto||'')+'" inputmode="numeric" placeholder="'+escapeHtml(h.cuota||'')+'"></div>'+
+            '<div class="field"><label for="p-nota">Nota (opcional)</label><input id="p-nota" name="nota" value="'+escapeHtml(payVals.nota||'')+'" placeholder="Ej: pago parcial"></div>'+
+          '</div>'+
+          '<div class="hint" style="margin-top:.5rem;">Si dejas el monto vacío, se usa la cuota de la casa ('+fmtMoney(h.cuota)+') para cada mes seleccionado.</div>'+
+          (payErr ? '<div class="field-error">'+escapeHtml(payErr.message)+'</div>' : '')+
+          '<div class="form-actions"><button type="submit" class="btn btn-primary">'+ICON.plus+' Agregar pago</button></div>'+
+        '</form>'+
+      '</div>';
+
+    var historyHtml;
+    if(pays.length===0){
+      historyHtml = '<div class="empty" style="margin-top:1.1rem;"><p>Todavía no hay pagos registrados para esta casa.</p></div>';
+    } else {
+      historyHtml =
+        '<div class="pay-table" style="margin-top:1.4rem;">'+
+          '<div class="pay-row head"><span>Fecha</span><span>Mes cubierto</span><span>Monto</span><span>Nota</span><span></span></div>'+
+          pays.map(function(p){
+            var confirmingDel = ui.confirmDeletePayment===p.id;
+            return (
+              '<div class="pay-row">'+
+                '<span data-label="Fecha" class="tabular">'+dateLabel(p.fecha)+'</span>'+
+                '<span data-label="Mes cubierto">'+escapeHtml(monthLabel(p.periodo))+'</span>'+
+                '<span data-label="Monto" class="tabular">'+fmtMoney(p.monto)+'</span>'+
+                '<span data-label="Nota" class="pay-note">'+escapeHtml(p.nota||'—')+'</span>'+
+                (readOnly ? '<span></span>' :
+                  '<span class="pay-del">'+
+                    (confirmingDel
+                      ? '<button type="button" class="btn btn-danger btn-sm" data-action="delete-payment" data-house="'+h.id+'" data-payment="'+p.id+'" title="Confirmar eliminar">Sí</button>'
+                      : '<button type="button" class="btn btn-ghost btn-icon" data-action="arm-delete-payment" data-payment="'+p.id+'" title="Eliminar pago">'+ICON.trash+'</button>')+
+                  '</span>')+
+              '</div>'
+            );
+          }).join('')+
+        '</div>';
+    }
+
+    var dangerHtml = readOnly ? '' :
+      '<div class="card card-pad" style="margin-top:1.5rem;">'+
+        '<div class="confirm-row">'+
+          (ui.confirmDeleteHouse===h.id
+            ? ('<span class="hint">¿Eliminar "'+escapeHtml(h.numero)+'" y todo su historial de pagos?</span>'+
+               '<button type="button" class="btn btn-danger btn-sm" data-action="delete-house" data-house="'+h.id+'">Sí, eliminar</button>'+
+               '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-delete-house">Cancelar</button>')
+            : '<button type="button" class="btn btn-danger btn-sm" data-action="arm-delete-house" data-house="'+h.id+'">'+ICON.trash+' Eliminar casa</button>')+
+        '</div>'+
+      '</div>';
+
+    return (
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">'+
+        '<a href="#/" class="back-link" style="margin-bottom:1rem;">'+ICON.arrowLeft+' Volver al panel</a>'+
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
+      '</div>'+
+      '<div class="detail-head"><h1>'+escapeHtml(h.numero)+'</h1>'+statusPill(status)+'</div>'+
+      '<div class="card card-pad">'+infoHtml+monthsStatusStrip(h)+'</div>'+
+      payFormHtml+
+      historyHtml+
+      dangerHtml
+    );
+  }
+
+  function renderConsulta(){
+    var c = ui.consulta;
+    var resultHtml = '';
+
+    if(c.status==='error'){
+      resultHtml = '<div class="field-error" style="margin-top:1rem;">'+escapeHtml(c.message)+'</div>';
+    } else if(c.status==='notfound'){
+      resultHtml =
+        '<div class="empty" style="margin-top:1.5rem;">'+
+          '<p><strong>No encontramos una casa registrada con ese RUT.</strong></p>'+
+          '<p>Verifica que esté bien escrito o consulta con la administración del barrio.</p>'+
+        '</div>';
+    } else if(c.status==='found'){
+      var h = getHouse(c.houseId);
+      if(h){
+        var status = houseStatus(h);
+        var pays = sortedPayments(h);
+        resultHtml =
+          '<div class="card card-pad" style="margin-top:1.5rem;">'+
+            '<div class="detail-head" style="margin-bottom:0;flex-wrap:wrap;">'+
+              '<h2 style="font-size:1.3rem;font-family:var(--font-display);">'+escapeHtml(h.numero)+'</h2>'+statusPill(status)+
+            '</div>'+
+            '<div class="info-row" style="margin-top:1rem;">'+
+              '<div><div class="k">Dirección</div><div class="v">'+escapeHtml(h.direccion||'—')+'</div></div>'+
+              '<div><div class="k">Responsable</div><div class="v">'+escapeHtml(h.responsable||'—')+'</div></div>'+
+              '<div><div class="k">Cuota mensual</div><div class="v tabular">'+fmtMoney(h.cuota)+'</div></div>'+
+              '<div><div class="k">Total pagado</div><div class="v tabular">'+fmtMoney(houseTotal(h))+'</div></div>'+
+            '</div>'+
+            monthsStatusStrip(h)+
+          '</div>'+
+          (pays.length===0
+            ? '<div class="empty" style="margin-top:1rem;"><p>Todavía no hay pagos registrados para esta casa.</p></div>'
+            : '<div class="pay-table" style="margin-top:1rem;">'+
+                '<div class="pay-row head"><span>Fecha</span><span>Mes cubierto</span><span>Monto</span><span>Nota</span><span></span></div>'+
+                pays.map(function(p){
+                  return (
+                    '<div class="pay-row">'+
+                      '<span data-label="Fecha" class="tabular">'+dateLabel(p.fecha)+'</span>'+
+                      '<span data-label="Mes cubierto">'+escapeHtml(monthLabel(p.periodo))+'</span>'+
+                      '<span data-label="Monto" class="tabular">'+fmtMoney(p.monto)+'</span>'+
+                      '<span data-label="Nota" class="pay-note">'+escapeHtml(p.nota||'—')+'</span>'+
+                      '<span></span>'+
+                    '</div>'
+                  );
+                }).join('')+
+              '</div>');
+      }
+    }
+
+    return (
+      '<header class="topbar">'+
+        '<div class="brand"><h1>Portal de Vecinos</h1><p>Consulta el estado de tu cuota con tu RUT</p></div>'+
+      '</header>'+
+      '<div class="card card-pad">'+
+        '<form data-action="consulta-buscar">'+
+          '<div class="field"><label for="c-rut">RUT</label><input id="c-rut" name="rut" required placeholder="12.345.678-5" value="'+escapeHtml(c.rut||'')+'" autocomplete="off"></div>'+
+          '<div class="form-actions"><button type="submit" class="btn btn-primary">Buscar</button></div>'+
+        '</form>'+
+      '</div>'+
+      resultHtml+
+      '<p style="margin-top:2.5rem;"><a href="#/" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Acceso administrador</a></p>'
+    );
+  }
+
+  function renderAuthScreen(mode){
+    var isSetup = mode==='setup';
+    return (
+      '<header class="topbar"><div class="brand"><h1>Cuotas del Barrio</h1><p>'+
+        (isSetup ? 'Configura el acceso de administrador' : 'Acceso de administrador') +
+      '</p></div></header>'+
+      '<div class="card card-pad auth-card">'+
+        (isSetup
+          ? (
+              '<p class="hint" style="margin-bottom:1rem;">Es la primera vez que se abre el panel. Crea una contraseña para proteger la administración de las casas. El portal de vecinos (consulta por RUT) sigue siendo público.</p>'+
+              '<form data-action="setup-password">'+
+                '<div class="field" style="margin-bottom:.75rem;"><label for="pw-new">Nueva contraseña</label><input id="pw-new" name="password" type="password" required autocomplete="new-password"></div>'+
+                '<div class="field"><label for="pw-confirm">Confirmar contraseña</label><input id="pw-confirm" name="confirm" type="password" required autocomplete="new-password"></div>'+
+                (ui.authError ? '<div class="field-error">'+escapeHtml(ui.authError)+'</div>' : '')+
+                '<div class="form-actions"><button type="submit" class="btn btn-primary">Crear contraseña y entrar</button></div>'+
+              '</form>'
+            )
+          : (
+              '<form data-action="login-password">'+
+                '<div class="field"><label for="pw-login">Contraseña de administrador</label><input id="pw-login" name="password" type="password" required autocomplete="current-password"></div>'+
+                (ui.authError ? '<div class="field-error">'+escapeHtml(ui.authError)+'</div>' : '')+
+                '<div class="form-actions"><button type="submit" class="btn btn-primary">Entrar</button></div>'+
+              '</form>'
+            )
+        )+
+      '</div>'+
+      '<p style="margin-top:1.5rem;"><a href="#/consulta" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Ir al portal de vecinos</a></p>'
+    );
+  }
+
+  function render(){
+    var root = document.getElementById('root');
+    var hash = location.hash.replace(/^#\/?/, '');
+    if(hash==='consulta'){ root.innerHTML = renderConsulta(); return; }
+    if(!STATE.meta || !STATE.meta.adminPasswordHash){ root.innerHTML = renderAuthScreen('setup'); return; }
+    if(!auth.unlocked){ root.innerHTML = renderAuthScreen('login'); return; }
+    var m = hash.match(/^casa\/(.+)$/);
+    root.innerHTML = m ? renderHouseDetail(decodeURIComponent(m[1])) : renderHome();
+  }
+
+  /* ---------- mutations ---------- */
+  function touch(){ STATE.meta = STATE.meta || {}; STATE.meta.updatedAt = new Date().toISOString(); }
+
+  function addHouse(data, rut){
+    STATE.houses.push({
+      id: uid(),
+      numero: data.numero.trim(),
+      rut: rut,
+      direccion: (data.direccion||'').trim(),
+      responsable: (data.responsable||'').trim(),
+      telefono: (data.telefono||'').trim(),
+      cuota: Number(data.cuota)||0,
+      payments: []
+    });
+    touch();
+  }
+  function editHouse(id, data, rut){
+    var h = getHouse(id); if(!h) return;
+    h.numero = data.numero.trim();
+    h.rut = rut;
+    h.direccion = (data.direccion||'').trim();
+    h.responsable = (data.responsable||'').trim();
+    h.telefono = (data.telefono||'').trim();
+    h.cuota = Number(data.cuota)||0;
+    touch();
+  }
+  function deleteHouseById(id){
+    STATE.houses = STATE.houses.filter(function(h){ return h.id!==id; });
+    touch();
+  }
+  function addPayment(houseId, data, periodos){
+    var h = getHouse(houseId); if(!h) return;
+    h.payments = h.payments || [];
+    var amount = (data.monto===''||data.monto==null)
+      ? (Number(h.cuota)||Number(STATE.meta&&STATE.meta.cuotaDefault)||0)
+      : (Number(data.monto)||0);
+    var nota = (data.nota||'').trim();
+    periodos.forEach(function(periodo){
+      h.payments.push({ id: uid(), fecha:data.fecha, periodo:periodo, monto:amount, nota:nota });
+    });
+    touch();
+  }
+  function quickPay(houseId){
+    var h = getHouse(houseId); if(!h) return;
+    h.payments = h.payments || [];
+    h.payments.push({ id: uid(), fecha: todayISO(), periodo: currentMonthKey(), monto: Number(h.cuota)||0, nota:'' });
+    touch();
+  }
+  function deletePayment(houseId, paymentId){
+    var h = getHouse(houseId); if(!h) return;
+    h.payments = (h.payments||[]).filter(function(p){ return p.id!==paymentId; });
+    touch();
+  }
+
+  function toast(msg){
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3200);
+  }
+
+  /* ---------- backup export / import ---------- */
+  function backupFilename(){
+    return 'cuotas-barrio-respaldo-' + todayISO() + '.json';
+  }
+  function downloadViaBlob(filename, text){
+    try{
+      var blob = new Blob([text], {type:'application/json'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1500);
+      toast('Respaldo descargado.');
+    }catch(e){
+      toast('No se pudo generar el archivo de respaldo en este navegador.');
+    }
+  }
+  function exportData(){
+    var filename = backupFilename();
+    var json = JSON.stringify(STATE, null, 2);
+    if(window.claude && typeof window.claude.use === 'function'){
+      window.claude.use('downloads').then(function(dl){
+        if(dl && typeof dl.save === 'function'){
+          dl.save({ filename:filename, data:json }).then(function(){
+            toast('Respaldo descargado.');
+          }).catch(function(err){
+            if(err && err.code === 'declined') return;
+            downloadViaBlob(filename, json);
+          });
+        } else {
+          downloadViaBlob(filename, json);
+        }
+      }).catch(function(){ downloadViaBlob(filename, json); });
+    } else {
+      downloadViaBlob(filename, json);
+    }
+  }
+  function handleImportFile(file){
+    var reader = new FileReader();
+    reader.onload = function(){
+      var parsed;
+      try{ parsed = JSON.parse(reader.result); }catch(err){
+        ui.importError = 'El archivo no es un respaldo válido (JSON con formato incorrecto).';
+        ui.importPending = null;
+        render();
+        return;
+      }
+      if(!parsed || typeof parsed!=='object' || !Array.isArray(parsed.houses)){
+        ui.importError = 'El archivo no tiene el formato esperado de un respaldo de Cuotas del Barrio.';
+        ui.importPending = null;
+        render();
+        return;
+      }
+      ui.importError = null;
+      ui.importPending = parsed;
+      render();
+    };
+    reader.onerror = function(){
+      ui.importError = 'No se pudo leer el archivo seleccionado.';
+      render();
+    };
+    reader.readAsText(file);
+  }
+
+  /* ---------- publish / persistence ---------- */
+  function buildFullDocument(state){
+    // Use fixed ids / document.title rather than querySelector('title'|'style'),
+    // because the hosting page can inject its own <style> (a baseline reset)
+    // into <head>: a bare querySelector('style') would grab THAT one instead
+    // of ours and republish a page with no real styling at all.
+    var titleTag = '<title>' + escapeHtml(document.title) + '</title>';
+    var fontLink = document.getElementById('gfont-link').outerHTML;
+    var styleEl = document.getElementById('app-styles');
+    var styleTag = styleEl ? styleEl.outerHTML : (document.querySelector('style') ? document.querySelector('style').outerHTML : '');
+    var stateJson = JSON.stringify(state).replace(/</g, '\\u003c');
+    return '<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'+
+      titleTag+'\n'+fontLink+'\n'+styleTag+'\n</head>\n<body>\n<div id="root"></div>\n'+
+      '<script type="application/json" id="app-state">'+stateJson+'</'+'script>\n'+
+      '<script>'+SCRIPT_TEXT+'</'+'script>\n</body>\n</html>';
+  }
+
+  function persist(){
+    if(artifactNS && !readOnly){
+      ui.saving = true; render();
+      artifactNS.publish(buildFullDocument(STATE)).then(function(){
+        /* view reloads automatically on success */
+      }).catch(function(err){
+        ui.saving = false;
+        if(err && err.code === 'conflict'){ return; }
+        if(err && (err.code==='not_writer' || err.code==='not_granted')){
+          readOnly = true; render(); return;
+        }
+        saveLocalFallback(STATE);
+        render();
+        toast('No se pudo guardar en el panel compartido. Se guardó una copia en este navegador.');
+      });
+    } else if(!readOnly){
+      saveLocalFallback(STATE);
+      render();
+    }
+  }
+
+  /* ---------- events ---------- */
+  function formToObject(form){
+    var out = {};
+    Array.prototype.forEach.call(form.elements, function(el){
+      if(el.name) out[el.name] = el.value;
+    });
+    return out;
+  }
+
+  document.addEventListener('submit', function(e){
+    var form = e.target;
+    if(!form.matches('[data-action]')) return;
+    e.preventDefault();
+    var action = form.getAttribute('data-action');
+    var data = formToObject(form);
+    if(action==='add-house'){
+      var v = validateHouseForm(data, null);
+      if(!v.ok){ ui.formError = { form:'add-house', message:v.message, values:data }; render(); return; }
+      ui.formError = null;
+      addHouse(data, v.rut);
+      ui.addOpen = false;
+      persist();
+    } else if(action==='add-payment'){
+      var houseId = form.getAttribute('data-house');
+      var periodos = Array.prototype.map.call(form.querySelectorAll('input[name="periodos"]:checked'), function(el){ return el.value; });
+      if(!data.fecha){ ui.formError = { form:'add-payment', message:'Ingresa la fecha de pago.', values:data, periodos:periodos }; render(); return; }
+      if(periodos.length===0){ ui.formError = { form:'add-payment', message:'Selecciona al menos un mes que cubre el pago.', values:data, periodos:periodos }; render(); return; }
+      if(data.monto!=='' && (isNaN(Number(data.monto)) || Number(data.monto)<0)){ ui.formError = { form:'add-payment', message:'El monto ingresado no es válido.', values:data, periodos:periodos }; render(); return; }
+      ui.formError = null;
+      addPayment(houseId, data, periodos);
+      persist();
+    } else if(action==='edit-house'){
+      var hid = form.getAttribute('data-house');
+      var v2 = validateHouseForm(data, hid);
+      if(!v2.ok){ ui.formError = { form:'edit-house', message:v2.message, values:data }; render(); return; }
+      ui.formError = null;
+      editHouse(hid, data, v2.rut);
+      ui.editingHouse = null;
+      persist();
+    } else if(action==='consulta-buscar'){
+      var rutInput = data.rut || '';
+      var norm = normalizeRut(rutInput);
+      if(!isValidRut(norm)){
+        ui.consulta = { rut:rutInput, status:'error', houseId:null, message:'Ingresa un RUT válido, por ejemplo 12.345.678-5.' };
+      } else {
+        var foundHouse = findHouseByRut(norm);
+        ui.consulta = foundHouse
+          ? { rut:rutInput, status:'found', houseId:foundHouse.id, message:'' }
+          : { rut:rutInput, status:'notfound', houseId:null, message:'' };
+      }
+      render();
+    } else if(action==='setup-password'){
+      if(!data.password || data.password.length<4){ ui.authError = 'La contraseña debe tener al menos 4 caracteres.'; render(); return; }
+      if(data.password !== data.confirm){ ui.authError = 'Las contraseñas no coinciden.'; render(); return; }
+      sha256Hex(data.password).then(function(hash){
+        if(!hash){ ui.authError = 'No se pudo crear la contraseña en este navegador.'; render(); return; }
+        STATE.meta = STATE.meta || {};
+        STATE.meta.adminPasswordHash = hash;
+        auth.unlocked = true;
+        try{ sessionStorage.setItem(AUTH_KEY, '1'); }catch(err){}
+        ui.authError = null;
+        persist();
+      });
+    } else if(action==='login-password'){
+      sha256Hex(data.password||'').then(function(hash){
+        if(hash && STATE.meta && hash===STATE.meta.adminPasswordHash){
+          auth.unlocked = true;
+          try{ sessionStorage.setItem(AUTH_KEY, '1'); }catch(err){}
+          ui.authError = null;
+          render();
+        } else {
+          ui.authError = 'Contraseña incorrecta.';
+          render();
+        }
+      });
+    } else if(action==='change-password'){
+      if(!data.password || data.password.length<4){ ui.changePwError = 'La contraseña debe tener al menos 4 caracteres.'; render(); return; }
+      if(data.password !== data.confirm){ ui.changePwError = 'Las contraseñas no coinciden.'; render(); return; }
+      sha256Hex(data.password).then(function(hash){
+        if(!hash){ ui.changePwError = 'No se pudo actualizar la contraseña en este navegador.'; render(); return; }
+        STATE.meta = STATE.meta || {};
+        STATE.meta.adminPasswordHash = hash;
+        ui.changePwError = null;
+        ui.changePwOpen = false;
+        persist();
+      });
+    } else if(action==='set-cuota-default'){
+      STATE.meta = STATE.meta || {};
+      STATE.meta.cuotaDefault = Number(data.cuotaDefault)||0;
+      touch();
+      persist();
+    }
+  });
+
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('[data-action]');
+    if(!el) return;
+    var action = el.getAttribute('data-action');
+
+    if(action==='open-house'){
+      if(e.target.closest('[data-stop]')) return;
+      location.hash = '#/casa/' + encodeURIComponent(el.getAttribute('data-house'));
+      return;
+    }
+    if(action==='toggle-add-form'){ ui.addOpen = !ui.addOpen; ui.formError = null; render(); return; }
+    if(action==='quick-pay'){ quickPay(el.getAttribute('data-house')); persist(); return; }
+    if(action==='start-edit-house'){ ui.editingHouse = el.getAttribute('data-house'); ui.formError = null; render(); return; }
+    if(action==='cancel-edit-house'){ ui.editingHouse = null; ui.formError = null; render(); return; }
+    if(action==='copy-consulta-link'){
+      var link = el.getAttribute('data-link');
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(link).then(function(){
+          toast('Enlace copiado al portapapeles.');
+        }).catch(function(){ toast(link); });
+      } else {
+        toast(link);
+      }
+      return;
+    }
+    if(action==='arm-delete-house'){ ui.confirmDeleteHouse = el.getAttribute('data-house'); render(); return; }
+    if(action==='cancel-delete-house'){ ui.confirmDeleteHouse = null; render(); return; }
+    if(action==='delete-house'){
+      var hid = el.getAttribute('data-house');
+      deleteHouseById(hid);
+      ui.confirmDeleteHouse = null;
+      location.hash = '#/';
+      persist();
+      return;
+    }
+    if(action==='arm-delete-payment'){ ui.confirmDeletePayment = el.getAttribute('data-payment'); render(); return; }
+    if(action==='delete-payment'){
+      deletePayment(el.getAttribute('data-house'), el.getAttribute('data-payment'));
+      ui.confirmDeletePayment = null;
+      persist();
+      return;
+    }
+    if(action==='toggle-change-pw'){ ui.changePwOpen = !ui.changePwOpen; ui.changePwError = null; render(); return; }
+    if(action==='export-data'){ exportData(); return; }
+    if(action==='trigger-import'){
+      var inp = document.getElementById('import-file-input');
+      if(inp) inp.click();
+      return;
+    }
+    if(action==='cancel-import'){ ui.importPending = null; ui.importError = null; render(); return; }
+    if(action==='confirm-import'){
+      if(ui.importPending){
+        STATE = ui.importPending;
+        ui.importPending = null;
+        ui.importError = null;
+        touch();
+        persist();
+        toast('Datos restaurados desde el archivo de respaldo.');
+      }
+      return;
+    }
+    if(action==='logout'){
+      try{ sessionStorage.removeItem(AUTH_KEY); }catch(e){}
+      auth.unlocked = false;
+      ui.authError = null;
+      location.hash = '#/';
+      render();
+      return;
+    }
+  });
+
+  document.addEventListener('change', function(e){
+    if(!e.target || !e.target.matches || !e.target.matches('#import-file-input')) return;
+    var file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    handleImportFile(file);
+  });
+
+  window.addEventListener('hashchange', function(){
+    ui.editingHouse = null; ui.confirmDeleteHouse = null; ui.confirmDeletePayment = null; ui.formError = null;
+    ui.authError = null; ui.changePwOpen = false; ui.changePwError = null;
+    ui.importPending = null; ui.importError = null;
+    render();
+  });
+
+  /* ---------- boot ---------- */
+  render();
+
+  if(window.claude && typeof window.claude.use === 'function'){
+    window.claude.use('artifact').then(function(ns){
+      artifactChecked = true;
+      artifactNS = ns;
+      if(!ns){
+        var local = loadLocalFallback();
+        if(local){ STATE = local; }
+      }
+      render();
+    }).catch(function(){
+      artifactChecked = true;
+      artifactNS = null;
+      render();
+    });
+    setTimeout(function(){
+      if(!artifactChecked){ artifactChecked = true; artifactNS = null; render(); }
+    }, 10500);
+  } else {
+    artifactChecked = true;
+    var local2 = loadLocalFallback();
+    if(local2){ STATE = local2; }
+    render();
+  }
+})();
+</script>
+
+</body>
+</html>
