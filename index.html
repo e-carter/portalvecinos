@@ -225,6 +225,10 @@
 (function(){
   "use strict";
 
+  // Súbelo a GitHub y luego revisa esta versión en la pantalla de entrada del
+  // administrador para confirmar que quedó publicada la última copia.
+  var APP_VERSION = 'v2 · GitHub · 2026-09-04';
+
   /* ---------- GitHub backend config ----------
      Rellena estos 4 datos con los de tu repositorio y tu token antes de subir
      este archivo a GitHub. Instrucciones completas al final de este archivo,
@@ -920,7 +924,8 @@
             )
         )+
       '</div>'+
-      '<p style="margin-top:1.5rem;"><a href="#/consulta" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Ir al portal de vecinos</a></p>'
+      '<p style="margin-top:1.5rem;"><a href="#/consulta" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Ir al portal de vecinos</a></p>'+
+      '<p class="hint" style="margin-top:2rem;text-align:center;">'+escapeHtml(APP_VERSION)+'</p>'
     );
   }
 
