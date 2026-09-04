@@ -234,6 +234,12 @@
   var stateEl = document.getElementById('app-state');
   var STATE = null;
   try{ STATE = JSON.parse(stateEl.textContent); }catch(e){ STATE = { meta:{currency:'CLP'}, houses:[] }; }
+  // Copia intacta de los datos con los que se publicó esta página, antes de
+  // que cualquier caché local (localStorage) los pueda reemplazar. Se usa
+  // únicamente para inicializar la nube la primera vez que está vacía, para
+  // no subir accidentalmente una copia vieja o incompleta que haya quedado
+  // guardada en este navegador.
+  var EMBEDDED_SEED_STATE = JSON.parse(JSON.stringify(STATE));
 
   var artifactNS = null;
   var artifactChecked = false;
@@ -444,7 +450,10 @@
         STATE = remote;
         render();
       } else {
-        // Todavía no hay datos en la nube: sube el estado actual como punto de partida.
+        // Todavía no hay datos en la nube: sube el estado ORIGINAL con el que
+        // se publicó esta página (no una copia que pudiera haber quedado
+        // guardada en este navegador de una sesión o prueba anterior).
+        STATE = EMBEDDED_SEED_STATE;
         writeFirebaseState().catch(function(){});
         render();
       }
