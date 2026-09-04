@@ -224,15 +224,132 @@
 <script>
 (function(){
   "use strict";
-  var SCRIPT_TEXT = document.currentScript.textContent;
+
+  /* ---------- GitHub backend config ----------
+     Rellena estos 4 datos con los de tu repositorio y tu token antes de subir
+     este archivo a GitHub. Instrucciones completas al final de este archivo,
+     en el comentario GITHUB_SETUP_INSTRUCTIONS.
+  */
+  var GITHUB_CONFIG = {
+    owner:  'e-carter',        // ej: 'eduardoacs'
+    repo:   'portalvecinos',              // ej: 'portalvecinos'
+    branch: 'main',
+    path:   'data/estado.json',            // archivo donde se guardan los datos
+    token:  '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' // token fine-grained, permiso Contents: Read and write
+  };
+  var githubConfigured = (function(){
+    return GITHUB_CONFIG.owner.indexOf('TU-USUARIO') === -1 &&
+           GITHUB_CONFIG.repo.indexOf('TU-REPOSITORIO') === -1 &&
+           GITHUB_CONFIG.token.indexOf('PEGA-AQUI') === -1 &&
+           !!GITHUB_CONFIG.token;
+  })();
+  var githubSha = null;
+  var githubChecked = false;
+  var githubOk = false;
+  var githubPollTimer = null;
+
+  function b64DecodeUtf8(b64){
+    var binary = atob(String(b64||'').replace(/\n/g,''));
+    var bytes = new Uint8Array(binary.length);
+    for(var i=0;i<binary.length;i++){ bytes[i] = binary.charCodeAt(i); }
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+  function b64EncodeUtf8(str){
+    var bytes = new TextEncoder().encode(str);
+    var binary = '';
+    for(var i=0;i<bytes.length;i++){ binary += String.fromCharCode(bytes[i]); }
+    return btoa(binary);
+  }
+  function githubHeaders(){
+    return {
+      'Authorization': 'Bearer ' + GITHUB_CONFIG.token,
+      'Accept': 'application/vnd.github+json'
+    };
+  }
+  function githubApiUrl(){
+    return 'https://api.github.com/repos/' + encodeURIComponent(GITHUB_CONFIG.owner) + '/' +
+      encodeURIComponent(GITHUB_CONFIG.repo) + '/contents/' + GITHUB_CONFIG.path.split('/').map(encodeURIComponent).join('/') +
+      '?ref=' + encodeURIComponent(GITHUB_CONFIG.branch) + '&_=' + Date.now();
+  }
+  function fetchGithubState(){
+    return fetch(githubApiUrl(), { headers: githubHeaders(), cache:'no-store' }).then(function(res){
+      if(res.status === 404){ githubSha = null; return null; }
+      if(!res.ok){
+        var err = new Error('GitHub respondió ' + res.status);
+        err.status = res.status;
+        throw err;
+      }
+      return res.json().then(function(json){
+        githubSha = json.sha;
+        var text;
+        try{ text = b64DecodeUtf8(json.content || ''); }catch(e){ return null; }
+        try{
+          var parsed = JSON.parse(text);
+          return (parsed && Array.isArray(parsed.houses)) ? parsed : null;
+        }catch(e){ return null; }
+      });
+    });
+  }
+  function persistToGithub(retrying){
+    ui.saving = true; render();
+    var body = {
+      message: 'Actualizar datos - ' + new Date().toISOString(),
+      content: b64EncodeUtf8(JSON.stringify(STATE, null, 2)),
+      branch: GITHUB_CONFIG.branch
+    };
+    if(githubSha) body.sha = githubSha;
+    fetch(githubApiUrl(), {
+      method:'PUT',
+      headers: Object.assign({ 'Content-Type':'application/json' }, githubHeaders()),
+      body: JSON.stringify(body)
+    }).then(function(res){
+      if(res.status === 409 && !retrying){
+        // Otra persona guardó justo antes: trae la versión más reciente y reintenta una vez.
+        return fetchGithubState().then(function(){ return persistToGithub(true); });
+      }
+      if(!res.ok){
+        var err = new Error('GitHub respondió ' + res.status);
+        err.status = res.status;
+        throw err;
+      }
+      return res.json().then(function(json){
+        if(json && json.content && json.content.sha){ githubSha = json.content.sha; }
+        ui.saving = false;
+        githubChecked = true;
+        githubOk = true;
+        readOnly = false;
+        render();
+      });
+    }).catch(function(err){
+      ui.saving = false;
+      if(err && (err.status===401 || err.status===403)){
+        githubOk = false;
+        readOnly = true;
+        render();
+        toast('No se pudo guardar en GitHub: el token no es válido o no tiene permiso sobre este repositorio.');
+        return;
+      }
+      saveLocalFallback(STATE);
+      render();
+      toast('No se pudo guardar en GitHub en este momento. Se guardó una copia en este navegador.');
+    });
+  }
+  function startGithubPolling(){
+    if(githubPollTimer) return;
+    githubPollTimer = setInterval(function(){
+      if(!githubConfigured || !githubOk || ui.saving) return;
+      if(ui.addOpen || ui.editingHouse || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.changePwOpen || ui.importPending) return;
+      fetchGithubState().then(function(remote){
+        if(remote){ STATE = remote; render(); }
+      }).catch(function(){ /* silent: next poll tries again */ });
+    }, 25000);
+  }
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
   var STATE = null;
   try{ STATE = JSON.parse(stateEl.textContent); }catch(e){ STATE = { meta:{currency:'CLP'}, houses:[] }; }
 
-  var artifactNS = null;
-  var artifactChecked = false;
   var readOnly = false;
   var ui = {
     addOpen:false, editingHouse:null, confirmDeleteHouse:null, confirmDeletePayment:null, saving:false,
@@ -433,10 +550,11 @@
     return '<span class="pill pill-neutral">'+ICON.dash+' Sin pagos</span>';
   }
   function savePillHtml(){
-    if(ui.saving) return '<span class="save-pill saving"><span class="dot"></span> Guardando…</span>';
-    if(!artifactChecked) return '<span class="save-pill"><span class="dot"></span> Conectando…</span>';
-    if(artifactNS && !readOnly) return '<span class="save-pill ok"><span class="dot"></span> Guardado en el panel</span>';
-    if(readOnly) return '<span class="save-pill local"><span class="dot"></span> Solo lectura</span>';
+    if(ui.saving) return '<span class="save-pill saving"><span class="dot"></span> Guardando en GitHub…</span>';
+    if(!githubConfigured) return '<span class="save-pill local"><span class="dot"></span> Guardado en este navegador (GitHub no configurado)</span>';
+    if(!githubChecked) return '<span class="save-pill"><span class="dot"></span> Conectando con GitHub…</span>';
+    if(githubOk && !readOnly) return '<span class="save-pill ok"><span class="dot"></span> Guardado en GitHub</span>';
+    if(readOnly) return '<span class="save-pill local"><span class="dot"></span> Solo lectura (revisa el token de GitHub)</span>';
     return '<span class="save-pill local"><span class="dot"></span> Guardado en este navegador</span>';
   }
 
@@ -944,40 +1062,16 @@
     reader.readAsText(file);
   }
 
-  /* ---------- publish / persistence ---------- */
-  function buildFullDocument(state){
-    // Use fixed ids / document.title rather than querySelector('title'|'style'),
-    // because the hosting page can inject its own <style> (a baseline reset)
-    // into <head>: a bare querySelector('style') would grab THAT one instead
-    // of ours and republish a page with no real styling at all.
-    var titleTag = '<title>' + escapeHtml(document.title) + '</title>';
-    var fontLink = document.getElementById('gfont-link').outerHTML;
-    var styleEl = document.getElementById('app-styles');
-    var styleTag = styleEl ? styleEl.outerHTML : (document.querySelector('style') ? document.querySelector('style').outerHTML : '');
-    var stateJson = JSON.stringify(state).replace(/</g, '\\u003c');
-    return '<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'+
-      titleTag+'\n'+fontLink+'\n'+styleTag+'\n</head>\n<body>\n<div id="root"></div>\n'+
-      '<script type="application/json" id="app-state">'+stateJson+'</'+'script>\n'+
-      '<script>'+SCRIPT_TEXT+'</'+'script>\n</body>\n</html>';
-  }
-
+  /* ---------- persistence ---------- */
   function persist(){
-    if(artifactNS && !readOnly){
-      ui.saving = true; render();
-      artifactNS.publish(buildFullDocument(STATE)).then(function(){
-        /* view reloads automatically on success */
-      }).catch(function(err){
-        ui.saving = false;
-        if(err && err.code === 'conflict'){ return; }
-        if(err && (err.code==='not_writer' || err.code==='not_granted')){
-          readOnly = true; render(); return;
-        }
-        saveLocalFallback(STATE);
-        render();
-        toast('No se pudo guardar en el panel compartido. Se guardó una copia en este navegador.');
-      });
+    if(githubConfigured && !readOnly){
+      persistToGithub(false);
     } else if(!readOnly){
       saveLocalFallback(STATE);
+      render();
+    } else {
+      // Solo lectura (token inválido o sin permiso): refleja el cambio solo
+      // en esta vista; no se guarda en ningún lado y se perderá al recargar.
       render();
     }
   }
@@ -1165,31 +1259,78 @@
   /* ---------- boot ---------- */
   render();
 
-  if(window.claude && typeof window.claude.use === 'function'){
-    window.claude.use('artifact').then(function(ns){
-      artifactChecked = true;
-      artifactNS = ns;
-      if(!ns){
+  if(githubConfigured){
+    fetchGithubState().then(function(remote){
+      githubChecked = true;
+      githubOk = true;
+      readOnly = false;
+      if(remote){ STATE = remote; }
+      render();
+      startGithubPolling();
+    }).catch(function(err){
+      githubChecked = true;
+      if(err && (err.status===401 || err.status===403)){
+        githubOk = false;
+        readOnly = true;
+      } else {
+        githubOk = false;
+        readOnly = false;
         var local = loadLocalFallback();
         if(local){ STATE = local; }
       }
       render();
-    }).catch(function(){
-      artifactChecked = true;
-      artifactNS = null;
-      render();
     });
-    setTimeout(function(){
-      if(!artifactChecked){ artifactChecked = true; artifactNS = null; render(); }
-    }, 10500);
   } else {
-    artifactChecked = true;
+    githubChecked = true;
     var local2 = loadLocalFallback();
     if(local2){ STATE = local2; }
     render();
   }
 })();
 </script>
+<!--
+GITHUB_SETUP_INSTRUCTIONS
+
+Esta copia guarda los datos directamente en un repositorio de GitHub, para que
+cualquiera que abra la página (vecinos incluidos) vea los mismos datos. Para
+activarlo, sigue estos pasos ANTES de subir este archivo:
+
+1) Crea un repositorio en GitHub (si no lo tienes) y activa GitHub Pages para él
+   (Settings > Pages > Deploy from a branch > main / root).
+
+2) Crea un token de acceso "fine-grained" (con permisos acotados):
+   - Ve a https://github.com/settings/personal-access-tokens/new
+   - "Resource owner": tu cuenta.
+   - "Repository access": elige "Only select repositories" y selecciona SOLO
+     el repositorio de esta página. No le des acceso a ningún otro repo.
+   - En "Permissions" > "Repository permissions", busca "Contents" y
+     selecciona "Read and write". Deja todos los demás permisos en "No access".
+   - Elige una fecha de expiración (por ejemplo 90 días) y genera el token.
+   - Copia el token (empieza con "github_pat_..."); GitHub solo lo muestra una vez.
+
+3) En este mismo archivo, en el bloque GITHUB_CONFIG (cerca del inicio del
+   <script>), reemplaza:
+     owner:  'TU-USUARIO-DE-GITHUB'   -> tu usuario de GitHub
+     repo:   'TU-REPOSITORIO'          -> el nombre del repositorio
+     branch: 'main'                    -> la rama que usa GitHub Pages (revisa Settings > Pages)
+     token:  'PEGA-AQUI-TU-TOKEN-DE-GITHUB' -> el token que copiaste en el paso 2
+
+4) Sube (o reemplaza) este archivo como index.html en tu repositorio.
+   No hace falta crear el archivo data/estado.json a mano: se crea solo la
+   primera vez que se guarda algo desde el panel de administrador.
+
+IMPORTANTE - sobre la seguridad de este método:
+Este token queda escrito dentro del código de la página, así que cualquier
+persona que abra el sitio y revise el código fuente (herramientas de
+desarrollador del navegador) puede copiarlo. Con un token "fine-grained"
+limitado solo a este repositorio y solo a "Contents: Read and write", esa
+persona podría, como mucho, leer o modificar los archivos de ESTE
+repositorio - no tendría acceso a tu cuenta ni a tus demás repositorios.
+Aun así, evita reutilizar este token en otro lado, y considera regenerarlo
+cada cierto tiempo (por ejemplo, cuando expire) desde la misma página de
+GitHub donde lo creaste.
+-->
+
 
 </body>
 </html>
