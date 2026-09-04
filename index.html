@@ -220,141 +220,47 @@
 </head>
 <body>
 <div class="shell" id="root"></div>
-<script type="application/json" id="app-state">{"meta":{"currency":"CLP","updatedAt":"2026-09-02T02:09:53.968Z"},"houses":[{"id":"idmtgpz4ksk7vvm0","numero":"12","direccion":"campiña","responsable":"eduardo","telefono":"972141657","cuota":15000,"payments":[{"id":"idmtgpzbtngq20cd","fecha":"2026-08-31","periodo":"2026-08","monto":15000,"nota":""},{"id":"idmtgq049tz1su6g","fecha":"2026-09-26","periodo":"2026-08","monto":12000,"nota":""}]},{"id":"idmtjgkoj49ess40","numero":"qwe","rut":"15567265-K","direccion":"23","responsable":"23","telefono":"","cuota":243433,"payments":[]}]}</script>
+<script type="application/json" id="app-state">{"meta":{"currency":"CLP","updatedAt":"2026-09-02T02:09:53.968Z","adminPasswordHash":"d48f650c9b96e0b89fbbbcf3f5fff9ae6a1a998d48f76c34b7b62e92e50c32e9"},"houses":[{"id":"idmtgpz4ksk7vvm0","numero":"12","direccion":"campiña","responsable":"eduardo","telefono":"972141657","cuota":15000,"payments":[{"id":"idmtgpzbtngq20cd","fecha":"2026-08-31","periodo":"2026-08","monto":15000,"nota":""},{"id":"idmtgq049tz1su6g","fecha":"2026-09-26","periodo":"2026-08","monto":12000,"nota":""}]},{"id":"idmtjgkoj49ess40","numero":"qwe","rut":"15567265-K","direccion":"23","responsable":"23","telefono":"","cuota":243433,"payments":[]}]}</script>
 <script>
 (function(){
   "use strict";
+  var SCRIPT_TEXT = document.currentScript.textContent;
 
-  // Súbelo a GitHub y luego revisa esta versión en la pantalla de entrada del
-  // administrador para confirmar que quedó publicada la última copia.
-  var APP_VERSION = 'v2 · GitHub · 2026-09-04';
-
-  /* ---------- GitHub backend config ----------
-     Rellena estos 4 datos con los de tu repositorio y tu token antes de subir
-     este archivo a GitHub. Instrucciones completas al final de este archivo,
-     en el comentario GITHUB_SETUP_INSTRUCTIONS.
-  */
-  var GITHUB_CONFIG = {
-    owner:  'e-carter',        // ej: 'eduardoacs'
-    repo:   'portalvecinos',              // ej: 'portalvecinos'
-    branch: 'main',
-    path:   'data/estado.json',            // archivo donde se guardan los datos
-    token:  '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' // token fine-grained, permiso Contents: Read and write
-  };
-  var githubConfigured = (function(){
-    return GITHUB_CONFIG.owner.indexOf('TU-USUARIO') === -1 &&
-           GITHUB_CONFIG.repo.indexOf('TU-REPOSITORIO') === -1 &&
-           GITHUB_CONFIG.token.indexOf('PEGA-AQUI') === -1 &&
-           !!GITHUB_CONFIG.token;
-  })();
-  var githubSha = null;
-  var githubChecked = false;
-  var githubOk = false;
-  var githubPollTimer = null;
-
-  function b64DecodeUtf8(b64){
-    var binary = atob(String(b64||'').replace(/\n/g,''));
-    var bytes = new Uint8Array(binary.length);
-    for(var i=0;i<binary.length;i++){ bytes[i] = binary.charCodeAt(i); }
-    return new TextDecoder('utf-8').decode(bytes);
-  }
-  function b64EncodeUtf8(str){
-    var bytes = new TextEncoder().encode(str);
-    var binary = '';
-    for(var i=0;i<bytes.length;i++){ binary += String.fromCharCode(bytes[i]); }
-    return btoa(binary);
-  }
-  function githubHeaders(){
-    return {
-      'Authorization': 'Bearer ' + GITHUB_CONFIG.token,
-      'Accept': 'application/vnd.github+json'
-    };
-  }
-  function githubApiUrl(){
-    return 'https://api.github.com/repos/' + encodeURIComponent(GITHUB_CONFIG.owner) + '/' +
-      encodeURIComponent(GITHUB_CONFIG.repo) + '/contents/' + GITHUB_CONFIG.path.split('/').map(encodeURIComponent).join('/') +
-      '?ref=' + encodeURIComponent(GITHUB_CONFIG.branch) + '&_=' + Date.now();
-  }
-  function fetchGithubState(){
-    return fetch(githubApiUrl(), { headers: githubHeaders(), cache:'no-store' }).then(function(res){
-      if(res.status === 404){ githubSha = null; return null; }
-      if(!res.ok){
-        var err = new Error('GitHub respondió ' + res.status);
-        err.status = res.status;
-        throw err;
-      }
-      return res.json().then(function(json){
-        githubSha = json.sha;
-        var text;
-        try{ text = b64DecodeUtf8(json.content || ''); }catch(e){ return null; }
-        try{
-          var parsed = JSON.parse(text);
-          return (parsed && Array.isArray(parsed.houses)) ? parsed : null;
-        }catch(e){ return null; }
-      });
-    });
-  }
-  function persistToGithub(retrying){
-    ui.saving = true; render();
-    var body = {
-      message: 'Actualizar datos - ' + new Date().toISOString(),
-      content: b64EncodeUtf8(JSON.stringify(STATE, null, 2)),
-      branch: GITHUB_CONFIG.branch
-    };
-    if(githubSha) body.sha = githubSha;
-    fetch(githubApiUrl(), {
-      method:'PUT',
-      headers: Object.assign({ 'Content-Type':'application/json' }, githubHeaders()),
-      body: JSON.stringify(body)
-    }).then(function(res){
-      if(res.status === 409 && !retrying){
-        // Otra persona guardó justo antes: trae la versión más reciente y reintenta una vez.
-        return fetchGithubState().then(function(){ return persistToGithub(true); });
-      }
-      if(!res.ok){
-        var err = new Error('GitHub respondió ' + res.status);
-        err.status = res.status;
-        throw err;
-      }
-      return res.json().then(function(json){
-        if(json && json.content && json.content.sha){ githubSha = json.content.sha; }
-        ui.saving = false;
-        githubChecked = true;
-        githubOk = true;
-        readOnly = false;
-        render();
-      });
-    }).catch(function(err){
-      ui.saving = false;
-      if(err && (err.status===401 || err.status===403)){
-        githubOk = false;
-        readOnly = true;
-        render();
-        toast('No se pudo guardar en GitHub: el token no es válido o no tiene permiso sobre este repositorio.');
-        return;
-      }
-      saveLocalFallback(STATE);
-      render();
-      toast('No se pudo guardar en GitHub en este momento. Se guardó una copia en este navegador.');
-    });
-  }
-  function startGithubPolling(){
-    if(githubPollTimer) return;
-    githubPollTimer = setInterval(function(){
-      if(!githubConfigured || !githubOk || ui.saving) return;
-      if(ui.addOpen || ui.editingHouse || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.changePwOpen || ui.importPending) return;
-      fetchGithubState().then(function(remote){
-        if(remote){ STATE = remote; render(); }
-      }).catch(function(){ /* silent: next poll tries again */ });
-    }, 25000);
-  }
+  // Revisa esta versión en la pantalla de entrada del administrador para
+  // confirmar que se está viendo la última copia publicada.
+  var APP_VERSION = 'v4 · panel Claude · 2026-09-04';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
   var STATE = null;
   try{ STATE = JSON.parse(stateEl.textContent); }catch(e){ STATE = { meta:{currency:'CLP'}, houses:[] }; }
 
+  var artifactNS = null;
+  var artifactChecked = false;
   var readOnly = false;
+
+  // Sincronización automática en la nube (Firebase Realtime Database),
+  // para cuando la página se usa fuera del panel de Claude. Es un valor
+  // deliberadamente público (no una clave secreta): no hay datos sensibles
+  // y la ruta funciona como un código difícil de adivinar, no como una
+  // contraseña real.
+  var FIREBASE_CONFIG = {
+    url:  'https://portalvecinos-default-rtdb.firebaseio.com/',
+    path: 'cuotas-oih71456y3'
+  };
+  var firebaseConfigured = !!(FIREBASE_CONFIG.url && FIREBASE_CONFIG.path);
+  var firebaseChecked = false;
+  var firebaseOk = false;
+  var firebasePollTimer = null;
+
+  // Guardado automático en un archivo local (estado.json), para cuando la
+  // página se usa fuera del panel de Claude y no hay sincronización en la
+  // nube configurada (en el computador del administrador o publicada en
+  // GitHub Pages).
+  var fsSupported = false;
+  var fsHandle = null;
+  var fsStatus = 'none'; // none | connecting | connected | reconnect
+  var fsFileName = '';
   var ui = {
     addOpen:false, editingHouse:null, confirmDeleteHouse:null, confirmDeletePayment:null, saving:false,
     formError:null, authError:null, changePwOpen:false, changePwError:null,
@@ -392,6 +298,203 @@
   }
   function saveLocalFallback(state){
     try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  /* ---------- archivo local (File System Access API) ---------- */
+  var IDB_NAME = 'cuotas-barrio-fs';
+  var IDB_STORE = 'handles';
+  var IDB_KEY = 'estadoFile';
+  function idbOpen(){
+    return new Promise(function(resolve, reject){
+      if(!('indexedDB' in window)){ reject(new Error('no-idb')); return; }
+      var req = indexedDB.open(IDB_NAME, 1);
+      req.onupgradeneeded = function(){ req.result.createObjectStore(IDB_STORE); };
+      req.onsuccess = function(){ resolve(req.result); };
+      req.onerror = function(){ reject(req.error); };
+    });
+  }
+  function idbGetHandle(){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, 'readonly');
+        var req = tx.objectStore(IDB_STORE).get(IDB_KEY);
+        req.onsuccess = function(){ resolve(req.result || null); };
+        req.onerror = function(){ reject(req.error); };
+      });
+    }).catch(function(){ return null; });
+  }
+  function idbSetHandle(handle){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve, reject){
+        var tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).put(handle, IDB_KEY);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ reject(tx.error); };
+      });
+    }).catch(function(){});
+  }
+  function idbClearHandle(){
+    return idbOpen().then(function(db){
+      return new Promise(function(resolve){
+        var tx = db.transaction(IDB_STORE, 'readwrite');
+        tx.objectStore(IDB_STORE).delete(IDB_KEY);
+        tx.oncomplete = function(){ resolve(); };
+        tx.onerror = function(){ resolve(); };
+      });
+    }).catch(function(){});
+  }
+
+  function writeStateToLocalFile(){
+    if(!fsHandle || fsStatus==='reconnect') return Promise.resolve();
+    return fsHandle.createWritable().then(function(writable){
+      return writable.write(JSON.stringify(STATE, null, 2)).then(function(){
+        return writable.close();
+      });
+    }).catch(function(err){
+      if(err && err.name==='NotAllowedError'){
+        fsStatus = 'reconnect';
+      } else {
+        toast('No se pudo guardar el archivo local (¿se movió, se renombró o se eliminó?).');
+      }
+      render();
+    });
+  }
+
+  function connectLocalFile(){
+    if(!fsSupported){
+      toast('Conectar un archivo automáticamente requiere Chrome o Edge en tu computador.');
+      return;
+    }
+    window.showSaveFilePicker({
+      suggestedName: 'estado.json',
+      types: [{ description: 'Datos (JSON)', accept: {'application/json': ['.json']} }]
+    }).then(function(handle){
+      fsHandle = handle; fsFileName = handle.name; fsStatus = 'connected';
+      idbSetHandle(handle);
+      return writeStateToLocalFile();
+    }).then(function(){
+      render();
+      toast('Archivo conectado. Los datos se guardarán ahí automáticamente.');
+    }).catch(function(err){
+      if(err && err.name!=='AbortError'){ toast('No se pudo conectar el archivo.'); }
+    });
+  }
+
+  function reconnectLocalFile(){
+    if(!fsHandle) return;
+    fsHandle.requestPermission({mode:'readwrite'}).then(function(perm){
+      if(perm==='granted'){
+        fsStatus = 'connected';
+        render();
+        writeStateToLocalFile();
+        toast('Archivo reconectado.');
+      } else {
+        toast('No se concedió permiso para escribir en el archivo.');
+      }
+    }).catch(function(){ toast('No se pudo reconectar el archivo.'); });
+  }
+
+  function disconnectLocalFile(){
+    fsHandle = null; fsFileName = ''; fsStatus = 'none';
+    idbClearHandle();
+    render();
+    toast('Archivo desconectado.');
+  }
+
+  /* ---------- sincronización en la nube (Firebase Realtime Database) ---------- */
+  function firebaseUrl(){
+    return FIREBASE_CONFIG.url.replace(/\/$/, '') + '/' + FIREBASE_CONFIG.path + '.json';
+  }
+  function fetchFirebaseState(){
+    return fetch(firebaseUrl(), {cache:'no-store'}).then(function(resp){
+      if(!resp.ok){ var err = new Error('http-'+resp.status); err.status = resp.status; throw err; }
+      return resp.json();
+    }).then(function(data){
+      return (data && Array.isArray(data.houses)) ? data : null;
+    });
+  }
+  function writeFirebaseState(){
+    return fetch(firebaseUrl(), {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(STATE)
+    }).then(function(resp){
+      if(!resp.ok){ throw new Error('http-'+resp.status); }
+    });
+  }
+  function startFirebasePolling(){
+    if(firebasePollTimer){ clearInterval(firebasePollTimer); }
+    firebasePollTimer = setInterval(function(){
+      var editing = ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.importPending;
+      if(editing) return;
+      fetchFirebaseState().then(function(remote){
+        firebaseOk = true;
+        if(remote && JSON.stringify(remote)!==JSON.stringify(STATE)){
+          STATE = remote;
+          render();
+        }
+      }).catch(function(){ firebaseOk = false; render(); });
+    }, 20000);
+  }
+  function initFirebaseSync(){
+    fetchFirebaseState().then(function(remote){
+      firebaseChecked = true;
+      firebaseOk = true;
+      if(remote){
+        STATE = remote;
+        render();
+      } else {
+        // Todavía no hay datos en la nube: sube el estado actual como punto de partida.
+        writeFirebaseState().catch(function(){});
+        render();
+      }
+      startFirebasePolling();
+    }).catch(function(){
+      firebaseChecked = true;
+      firebaseOk = false;
+      render();
+      startFirebasePolling(); // sigue reintentando en segundo plano
+    });
+  }
+
+  function initStandaloneData(){
+    fsSupported = (typeof window.showSaveFilePicker === 'function');
+    var local = loadLocalFallback();
+    if(local){ STATE = local; }
+    render();
+
+    if(firebaseConfigured){
+      initFirebaseSync();
+      return;
+    }
+
+    idbGetHandle().then(function(handle){
+      if(!handle) return null;
+      fsHandle = handle; fsFileName = handle.name;
+      return handle.queryPermission({mode:'readwrite'}).then(function(perm){
+        if(perm==='granted'){
+          fsStatus = 'connected';
+          return handle.getFile().then(function(f){ return f.text(); }).then(function(text){
+            var parsed = JSON.parse(text);
+            return (parsed && Array.isArray(parsed.houses)) ? parsed : null;
+          }).catch(function(){ return null; });
+        }
+        fsStatus = 'reconnect';
+        return null;
+      });
+    }).catch(function(){ return null; }).then(function(fromFile){
+      if(fromFile){ STATE = fromFile; render(); return; }
+      if(fsStatus==='connected'){ render(); return; }
+      // Sin archivo local conectado (o aún sin leerlo): intenta leer un
+      // estado.json junto a esta página — así una copia publicada en
+      // GitHub Pages muestra los últimos datos que subió el administrador.
+      fetch('estado.json', {cache:'no-store'}).then(function(resp){
+        if(!resp.ok) throw 0;
+        return resp.json();
+      }).then(function(parsed){
+        if(parsed && Array.isArray(parsed.houses)){ STATE = parsed; render(); }
+      }).catch(function(){ /* sin estado.json disponible aún; se mantienen los datos actuales */ });
+    });
   }
 
   /* ---------- helpers ---------- */
@@ -554,11 +657,17 @@
     return '<span class="pill pill-neutral">'+ICON.dash+' Sin pagos</span>';
   }
   function savePillHtml(){
-    if(ui.saving) return '<span class="save-pill saving"><span class="dot"></span> Guardando en GitHub…</span>';
-    if(!githubConfigured) return '<span class="save-pill local"><span class="dot"></span> Guardado en este navegador (GitHub no configurado)</span>';
-    if(!githubChecked) return '<span class="save-pill"><span class="dot"></span> Conectando con GitHub…</span>';
-    if(githubOk && !readOnly) return '<span class="save-pill ok"><span class="dot"></span> Guardado en GitHub</span>';
-    if(readOnly) return '<span class="save-pill local"><span class="dot"></span> Solo lectura (revisa el token de GitHub)</span>';
+    if(ui.saving) return '<span class="save-pill saving"><span class="dot"></span> Guardando…</span>';
+    if(!artifactChecked) return '<span class="save-pill"><span class="dot"></span> Conectando…</span>';
+    if(artifactNS && !readOnly) return '<span class="save-pill ok"><span class="dot"></span> Guardado en el panel</span>';
+    if(readOnly) return '<span class="save-pill local"><span class="dot"></span> Solo lectura</span>';
+    if(!artifactNS && firebaseConfigured){
+      if(!firebaseChecked) return '<span class="save-pill"><span class="dot"></span> Conectando con la nube…</span>';
+      if(firebaseOk) return '<span class="save-pill ok"><span class="dot"></span> Guardado en la nube</span>';
+      return '<span class="save-pill local"><span class="dot"></span> Sin conexión — guardado en este navegador</span>';
+    }
+    if(!artifactNS && fsStatus==='connected') return '<span class="save-pill ok"><span class="dot"></span> Guardado en '+escapeHtml(fsFileName||'archivo local')+'</span>';
+    if(!artifactNS && fsStatus==='reconnect') return '<span class="save-pill local"><span class="dot"></span> Archivo local desconectado</span>';
     return '<span class="save-pill local"><span class="dot"></span> Guardado en este navegador</span>';
   }
 
@@ -639,7 +748,7 @@
       '</div>';
 
     var backupHtml = '';
-    if(!readOnly){
+    if(!readOnly && artifactNS){
       backupHtml =
         '<div class="card card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:'+(ui.importPending||ui.importError?'.6rem':'1.5rem')+';">'+
           '<div><div style="font-weight:600;">Respaldo de datos</div>'+
@@ -649,6 +758,63 @@
             '<button type="button" class="btn btn-ghost btn-sm" data-action="trigger-import">'+ICON.upload+' Recuperar datos</button>'+
             '<input type="file" id="import-file-input" accept="application/json,.json" hidden>'+
           '</div>'+
+        '</div>'+
+        (ui.importError ? '<div class="field-error" style="margin:-.4rem 0 1.1rem;">'+escapeHtml(ui.importError)+'</div>' : '')+
+        (ui.importPending ? (
+          '<div class="card card-pad" style="margin-bottom:1.5rem;border-color:var(--accent);">'+
+            '<div class="hint" style="margin-bottom:.6rem;">Se encontraron '+(ui.importPending.houses?ui.importPending.houses.length:0)+' casa(s) en el archivo. Esto reemplazará todos los datos actuales del sistema. ¿Continuar?</div>'+
+            '<div class="form-actions" style="margin-top:0;">'+
+              '<button type="button" class="btn btn-primary btn-sm" data-action="confirm-import">Sí, reemplazar datos</button>'+
+              '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-import">Cancelar</button>'+
+            '</div>'+
+          '</div>'
+        ) : '');
+    } else if(!readOnly && !artifactNS && firebaseConfigured){
+      backupHtml =
+        '<div class="card card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:'+(ui.importPending||ui.importError?'.6rem':'1.5rem')+';">'+
+          '<div style="flex:1;min-width:220px;"><div style="font-weight:600;">Sincronización automática</div>'+
+          '<div class="hint" style="margin-top:.2rem;">Los datos se guardan y actualizan solos en la nube: cualquier copia de esta página (en tu computador o en GitHub) muestra siempre la información más reciente, sin subir nada a mano.</div></div>'+
+          '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="export-data">'+ICON.download+' Exportar copia</button>'+
+            '<button type="button" class="btn btn-ghost btn-sm" data-action="trigger-import">'+ICON.upload+' Restaurar copia</button>'+
+            '<input type="file" id="import-file-input" accept="application/json,.json" hidden>'+
+          '</div>'+
+        '</div>'+
+        (ui.importError ? '<div class="field-error" style="margin:-.4rem 0 1.1rem;">'+escapeHtml(ui.importError)+'</div>' : '')+
+        (ui.importPending ? (
+          '<div class="card card-pad" style="margin-bottom:1.5rem;border-color:var(--accent);">'+
+            '<div class="hint" style="margin-bottom:.6rem;">Se encontraron '+(ui.importPending.houses?ui.importPending.houses.length:0)+' casa(s) en el archivo. Esto reemplazará todos los datos actuales del sistema (también en la nube). ¿Continuar?</div>'+
+            '<div class="form-actions" style="margin-top:0;">'+
+              '<button type="button" class="btn btn-primary btn-sm" data-action="confirm-import">Sí, reemplazar datos</button>'+
+              '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-import">Cancelar</button>'+
+            '</div>'+
+          '</div>'
+        ) : '');
+    } else if(!readOnly && !artifactNS){
+      var fsDesc, fsButtons;
+      if(fsSupported && fsStatus==='connected'){
+        fsDesc = 'Cada cambio se guarda automáticamente en <strong>'+escapeHtml(fsFileName||'estado.json')+'</strong>. Sube ese archivo a GitHub (reemplazando el anterior) para actualizar la consulta pública.';
+        fsButtons = '<button type="button" class="btn btn-ghost btn-sm" data-action="disconnect-local-file">Desconectar</button>';
+      } else if(fsSupported && fsStatus==='reconnect'){
+        fsDesc = 'Se desconectó el acceso al archivo <strong>'+escapeHtml(fsFileName||'estado.json')+'</strong>. Reconéctalo para seguir guardando los cambios ahí.';
+        fsButtons =
+          '<button type="button" class="btn btn-primary btn-sm" data-action="reconnect-local-file">Reconectar archivo</button>'+
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="disconnect-local-file">Olvidar</button>';
+      } else if(fsSupported){
+        fsDesc = 'Elige dónde guardar un archivo <strong>estado.json</strong> junto a esta página. Se actualizará solo cada vez que agregues o cambies datos; luego solo debes subirlo a GitHub para que se vea en la consulta pública.';
+        fsButtons = '<button type="button" class="btn btn-primary btn-sm" data-action="connect-local-file">'+ICON.download+' Conectar archivo de respaldo</button>';
+      } else {
+        fsDesc = 'Descarga un archivo con todos los datos del sistema, o recupera un respaldo guardado anteriormente. (El guardado automático en un archivo requiere Chrome o Edge en tu computador.)';
+        fsButtons =
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="export-data">'+ICON.download+' Exportar datos</button>'+
+          '<button type="button" class="btn btn-ghost btn-sm" data-action="trigger-import">'+ICON.upload+' Recuperar datos</button>'+
+          '<input type="file" id="import-file-input" accept="application/json,.json" hidden>';
+      }
+      backupHtml =
+        '<div class="card card-pad" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:'+(ui.importPending||ui.importError?'.6rem':'1.5rem')+';">'+
+          '<div style="flex:1;min-width:220px;"><div style="font-weight:600;">Respaldo de datos</div>'+
+          '<div class="hint" style="margin-top:.2rem;">'+fsDesc+'</div></div>'+
+          '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'+fsButtons+'</div>'+
         '</div>'+
         (ui.importError ? '<div class="field-error" style="margin:-.4rem 0 1.1rem;">'+escapeHtml(ui.importError)+'</div>' : '')+
         (ui.importPending ? (
@@ -1067,17 +1233,52 @@
     reader.readAsText(file);
   }
 
-  /* ---------- persistence ---------- */
+  /* ---------- publish / persistence ---------- */
+  function buildFullDocument(state){
+    // Use fixed ids / document.title rather than querySelector('title'|'style'),
+    // because the hosting page can inject its own <style> (a baseline reset)
+    // into <head>: a bare querySelector('style') would grab THAT one instead
+    // of ours and republish a page with no real styling at all.
+    var titleTag = '<title>' + escapeHtml(document.title) + '</title>';
+    var fontLink = document.getElementById('gfont-link').outerHTML;
+    var styleEl = document.getElementById('app-styles');
+    var styleTag = styleEl ? styleEl.outerHTML : (document.querySelector('style') ? document.querySelector('style').outerHTML : '');
+    var stateJson = JSON.stringify(state).replace(/</g, '\\u003c');
+    return '<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'+
+      titleTag+'\n'+fontLink+'\n'+styleTag+'\n</head>\n<body>\n<div id="root"></div>\n'+
+      '<script type="application/json" id="app-state">'+stateJson+'</'+'script>\n'+
+      '<script>'+SCRIPT_TEXT+'</'+'script>\n</body>\n</html>';
+  }
+
   function persist(){
-    if(githubConfigured && !readOnly){
-      persistToGithub(false);
+    if(artifactNS && !readOnly){
+      ui.saving = true; render();
+      artifactNS.publish(buildFullDocument(STATE)).then(function(){
+        /* view reloads automatically on success */
+      }).catch(function(err){
+        ui.saving = false;
+        if(err && err.code === 'conflict'){ return; }
+        if(err && (err.code==='not_writer' || err.code==='not_granted')){
+          readOnly = true; render(); return;
+        }
+        saveLocalFallback(STATE);
+        render();
+        toast('No se pudo guardar en el panel compartido. Se guardó una copia en este navegador.');
+      });
     } else if(!readOnly){
       saveLocalFallback(STATE);
-      render();
-    } else {
-      // Solo lectura (token inválido o sin permiso): refleja el cambio solo
-      // en esta vista; no se guarda en ningún lado y se perderá al recargar.
-      render();
+      if(firebaseConfigured){
+        ui.saving = true; render();
+        writeFirebaseState().then(function(){
+          ui.saving = false; firebaseOk = true; render();
+        }).catch(function(){
+          ui.saving = false; firebaseOk = false; render();
+          toast('No se pudo sincronizar con la nube; se guardó una copia en este navegador.');
+        });
+      } else {
+        if(fsHandle){ writeStateToLocalFile(); }
+        render();
+      }
     }
   }
 
@@ -1225,6 +1426,9 @@
       return;
     }
     if(action==='cancel-import'){ ui.importPending = null; ui.importError = null; render(); return; }
+    if(action==='connect-local-file'){ connectLocalFile(); return; }
+    if(action==='reconnect-local-file'){ reconnectLocalFile(); return; }
+    if(action==='disconnect-local-file'){ disconnectLocalFile(); return; }
     if(action==='confirm-import'){
       if(ui.importPending){
         STATE = ui.importPending;
@@ -1264,78 +1468,29 @@
   /* ---------- boot ---------- */
   render();
 
-  if(githubConfigured){
-    fetchGithubState().then(function(remote){
-      githubChecked = true;
-      githubOk = true;
-      readOnly = false;
-      if(remote){ STATE = remote; }
-      render();
-      startGithubPolling();
-    }).catch(function(err){
-      githubChecked = true;
-      if(err && (err.status===401 || err.status===403)){
-        githubOk = false;
-        readOnly = true;
-      } else {
-        githubOk = false;
-        readOnly = false;
+  if(window.claude && typeof window.claude.use === 'function'){
+    window.claude.use('artifact').then(function(ns){
+      artifactChecked = true;
+      artifactNS = ns;
+      if(!ns){
         var local = loadLocalFallback();
         if(local){ STATE = local; }
       }
       render();
+    }).catch(function(){
+      artifactChecked = true;
+      artifactNS = null;
+      render();
     });
+    setTimeout(function(){
+      if(!artifactChecked){ artifactChecked = true; artifactNS = null; render(); }
+    }, 10500);
   } else {
-    githubChecked = true;
-    var local2 = loadLocalFallback();
-    if(local2){ STATE = local2; }
-    render();
+    artifactChecked = true;
+    initStandaloneData();
   }
 })();
 </script>
-<!--
-GITHUB_SETUP_INSTRUCTIONS
-
-Esta copia guarda los datos directamente en un repositorio de GitHub, para que
-cualquiera que abra la página (vecinos incluidos) vea los mismos datos. Para
-activarlo, sigue estos pasos ANTES de subir este archivo:
-
-1) Crea un repositorio en GitHub (si no lo tienes) y activa GitHub Pages para él
-   (Settings > Pages > Deploy from a branch > main / root).
-
-2) Crea un token de acceso "fine-grained" (con permisos acotados):
-   - Ve a https://github.com/settings/personal-access-tokens/new
-   - "Resource owner": tu cuenta.
-   - "Repository access": elige "Only select repositories" y selecciona SOLO
-     el repositorio de esta página. No le des acceso a ningún otro repo.
-   - En "Permissions" > "Repository permissions", busca "Contents" y
-     selecciona "Read and write". Deja todos los demás permisos en "No access".
-   - Elige una fecha de expiración (por ejemplo 90 días) y genera el token.
-   - Copia el token (empieza con "github_pat_..."); GitHub solo lo muestra una vez.
-
-3) En este mismo archivo, en el bloque GITHUB_CONFIG (cerca del inicio del
-   <script>), reemplaza:
-     owner:  'TU-USUARIO-DE-GITHUB'   -> tu usuario de GitHub
-     repo:   'TU-REPOSITORIO'          -> el nombre del repositorio
-     branch: 'main'                    -> la rama que usa GitHub Pages (revisa Settings > Pages)
-     token:  'PEGA-AQUI-TU-TOKEN-DE-GITHUB' -> el token que copiaste en el paso 2
-
-4) Sube (o reemplaza) este archivo como index.html en tu repositorio.
-   No hace falta crear el archivo data/estado.json a mano: se crea solo la
-   primera vez que se guarda algo desde el panel de administrador.
-
-IMPORTANTE - sobre la seguridad de este método:
-Este token queda escrito dentro del código de la página, así que cualquier
-persona que abra el sitio y revise el código fuente (herramientas de
-desarrollador del navegador) puede copiarlo. Con un token "fine-grained"
-limitado solo a este repositorio y solo a "Contents: Read and write", esa
-persona podría, como mucho, leer o modificar los archivos de ESTE
-repositorio - no tendría acceso a tu cuenta ni a tus demás repositorios.
-Aun así, evita reutilizar este token en otro lado, y considera regenerarlo
-cada cierto tiempo (por ejemplo, cuando expire) desde la misma página de
-GitHub donde lo creaste.
--->
-
 
 </body>
 </html>
