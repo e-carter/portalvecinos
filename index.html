@@ -275,7 +275,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v12 · build 20260905-0500';
+  var APP_VERSION = 'v13 · build 20260905-0600';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -1472,7 +1472,7 @@
               '<div><div class="k">Cuota mensual</div><div class="v tabular">'+fmtMoney(h.cuota)+'</div></div>'+
               '<div><div class="k">Total pagado</div><div class="v tabular">'+fmtMoney(houseTotal(h))+'</div></div>'+
             '</div>'+
-            monthsStatusStrip(h)+
+            monthsStatusStrip(h, ui.selectedYear, true)+
           '</div>'+
           (pays.length===0
             ? '<div class="empty" style="margin-top:1rem;"><p>Todavía no hay pagos registrados para esta casa.</p></div>'
