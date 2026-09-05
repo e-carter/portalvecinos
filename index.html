@@ -275,7 +275,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v10 · build 20260905-0300';
+  var APP_VERSION = 'v12 · build 20260905-0500';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -325,6 +325,8 @@
   var DEFAULT_DIRECCION = 'La Campiña';
   var LS_KEY = 'cuotas-barrio-state-v1';
   var AUTH_KEY = 'cuotas-barrio-admin-unlocked-v1';
+  var CONSULTA_LAST_RUT_KEY = 'cuotas-barrio-last-rut-v1';
+  var consultaAutoRestoreDone = false;
   var auth = { unlocked:false };
   try{ auth.unlocked = sessionStorage.getItem(AUTH_KEY)==='1'; }catch(e){ auth.unlocked = false; }
 
@@ -746,6 +748,31 @@
   }
   function findHouseByRut(normalized){
     return STATE.houses.find(function(h){ return h.rut===normalized; });
+  }
+  function runConsultaSearch(rutInput){
+    var norm = normalizeRut(rutInput);
+    if(!isValidRut(norm)){
+      ui.consulta = { rut:rutInput, status:'error', houseId:null, message:'Ingresa un RUT válido, por ejemplo 12.345.678-5.' };
+      return;
+    }
+    var foundHouse = findHouseByRut(norm);
+    ui.consulta = foundHouse
+      ? { rut:rutInput, status:'found', houseId:foundHouse.id, message:'' }
+      : { rut:rutInput, status:'notfound', houseId:null, message:'' };
+  }
+  function maybeRestoreConsultaSearch(){
+    if(consultaAutoRestoreDone) return;
+    var hash = (location.hash||'').replace(/^#\/?/, '');
+    if(hash!=='consulta'){ consultaAutoRestoreDone = true; return; }
+    if(ui.consulta.status!=='idle') return;
+    // Espera a que terminen de resolverse los datos (panel de Claude o nube) para
+    // no mostrar "no encontrado" un instante antes de que lleguen los datos reales.
+    if(!artifactChecked) return;
+    if(!artifactNS && firebaseConfigured && !firebaseChecked) return;
+    consultaAutoRestoreDone = true;
+    var saved = null;
+    try{ saved = sessionStorage.getItem(CONSULTA_LAST_RUT_KEY); }catch(e){}
+    if(saved){ runConsultaSearch(saved); }
   }
   function validateHouseForm(data, excludeId){
     if(!data.numero || !data.numero.trim()) return { ok:false, message:'Ingresa el número o nombre de la casa.' };
@@ -1513,6 +1540,7 @@
   }
 
   function render(){
+    maybeRestoreConsultaSearch();
     var root = document.getElementById('root');
     var hash = location.hash.replace(/^#\/?/, '');
     if(hash==='consulta'){ root.innerHTML = renderConsulta(); return; }
@@ -1600,6 +1628,49 @@
     el.textContent = msg;
     document.body.appendChild(el);
     setTimeout(function(){ el.remove(); }, 3200);
+  }
+
+  /* ---------- detección de nueva versión publicada ---------- */
+  // Si un vecino deja abierta la página de consulta (pública) y se publica una
+  // versión nueva, la pestaña sigue mostrando el código viejo hasta que alguien
+  // la recargue a mano. Para evitarlo, se revisa cada cierto tiempo (y cada vez
+  // que la pestaña vuelve a estar visible) si la versión publicada cambió, y si
+  // es así se recarga sola. Esto SOLO aplica a la consulta pública: el panel de
+  // administración nunca se recarga solo, para no interrumpir una edición.
+  var versionCheckInFlight = false;
+  function isConsultaRoute(){
+    return (location.hash||'').replace(/^#\/?/, '')==='consulta';
+  }
+  function isUserEditingSomething(){
+    var el = document.activeElement;
+    if(el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA' || el.tagName==='SELECT')) return true;
+    return !!(ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment ||
+      ui.importPending || ui.confirmDeleteHouseYear || ui.confirmDeleteGasto || ui.saving);
+  }
+  function checkForNewVersion(){
+    if(!isConsultaRoute()) return; // el panel de administración no se autoactualiza
+    if(versionCheckInFlight) return;
+    versionCheckInFlight = true;
+    var url = location.pathname + location.search;
+    fetch(url, {cache:'no-store'}).then(function(resp){
+      if(!resp.ok) return null;
+      return resp.text();
+    }).then(function(text){
+      versionCheckInFlight = false;
+      if(!text) return;
+      if(!isConsultaRoute()) return; // se salió de la consulta mientras se revisaba
+      var m = text.match(/var APP_VERSION\s*=\s*'([^']*)'/);
+      if(!m || !m[1] || m[1]===APP_VERSION) return;
+      if(isUserEditingSomething()) return; // se reintenta en el próximo ciclo
+      toast('Hay una nueva versión disponible. Actualizando…');
+      setTimeout(function(){ location.reload(); }, 1200);
+    }).catch(function(){ versionCheckInFlight = false; });
+  }
+  function startVersionWatch(){
+    setInterval(checkForNewVersion, 300000); // cada 5 minutos, mientras la pestaña esté abierta
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState==='visible'){ checkForNewVersion(); }
+    });
   }
 
   /* ---------- backup export / import ---------- */
@@ -1758,15 +1829,8 @@
       persist();
     } else if(action==='consulta-buscar'){
       var rutInput = data.rut || '';
-      var norm = normalizeRut(rutInput);
-      if(!isValidRut(norm)){
-        ui.consulta = { rut:rutInput, status:'error', houseId:null, message:'Ingresa un RUT válido, por ejemplo 12.345.678-5.' };
-      } else {
-        var foundHouse = findHouseByRut(norm);
-        ui.consulta = foundHouse
-          ? { rut:rutInput, status:'found', houseId:foundHouse.id, message:'' }
-          : { rut:rutInput, status:'notfound', houseId:null, message:'' };
-      }
+      runConsultaSearch(rutInput);
+      try{ sessionStorage.setItem(CONSULTA_LAST_RUT_KEY, rutInput); }catch(e){}
       render();
     } else if(action==='setup-password'){
       if(!data.password || data.password.length<4){ ui.authError = 'La contraseña debe tener al menos 4 caracteres.'; render(); return; }
@@ -1948,6 +2012,7 @@
 
   /* ---------- boot ---------- */
   render();
+  startVersionWatch();
 
   if(window.claude && typeof window.claude.use === 'function'){
     window.claude.use('artifact').then(function(ns){
