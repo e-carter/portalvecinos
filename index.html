@@ -206,6 +206,18 @@
   .month-chip .mc-icon svg{ width:1.1em; height:1.1em; }
   @media (max-width:480px){ .months-strip{ grid-template-columns:repeat(3,1fr); } }
 
+  .year-btns{ display:flex; flex-direction:row; flex-wrap:wrap; gap:.5rem; }
+  .year-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:.5rem 1.1rem; border-radius:9px; border:2px solid transparent;
+    font-weight:700; font-size:.9rem; font-family:var(--font-mono); cursor:pointer;
+    background:var(--neutral-bg); color:var(--neutral-fg);
+  }
+  .year-btn-green{ background:var(--ok-bg); color:var(--ok-fg); }
+  .year-btn-orange{ background:var(--pending-bg); color:var(--pending-fg); }
+  .year-btn-red{ background:var(--danger-soft); color:var(--danger); }
+  .year-btn.active{ border-color:currentColor; box-shadow:0 0 0 2px var(--surface), 0 0 0 4px currentColor; }
+
   .month-picker{ display:grid; grid-template-columns:repeat(6,1fr); gap:.4rem; margin-top:.3rem; }
   .month-pick-chip{
     position:relative; display:flex; align-items:center; justify-content:center;
@@ -267,7 +279,7 @@
 </head>
 <body>
 <div class="shell" id="root"></div>
-<script type="application/json" id="app-state">{"meta":{"currency":"CLP","updatedAt":"2026-09-05T01:26:34.471Z","adminPasswordHash":"8ece6371b768f5b5730f11107353810689dae8524fb6a8c6ebe1badfc32a8527","cuotaDefault":1000},"houses":[{"id":"idmtnp9msdn4uf70","numero":"3","rut":"15567265-K","direccion":"Campina","responsable":"Eduardo cartet","telefono":"972141657","cuota":1000,"payments":[{"id":"idmtnpayfes2flb7","fecha":"2026-09-04","periodo":"2026-01","monto":1000,"nota":""},{"id":"idmtnpayffefq183","fecha":"2026-09-04","periodo":"2026-02","monto":1000,"nota":""}]},{"id":"idmtnpc4a0wxyvsm","numero":"1","rut":"13614553-3","direccion":"Campina","responsable":"Pamela","telefono":"941635977","cuota":1000,"payments":[{"id":"idmtnpciqv7sjy8z","fecha":"2026-09-04","periodo":"2026-01","monto":1000,"nota":""},{"id":"idmtnpciqvzcohx2","fecha":"2026-09-04","periodo":"2026-02","monto":1000,"nota":""},{"id":"idmtnpciqviirup5","fecha":"2026-09-04","periodo":"2026-03","monto":1000,"nota":""},{"id":"idmtnpciqvj25w96","fecha":"2026-09-04","periodo":"2026-04","monto":1000,"nota":""},{"id":"idmtnpciqvasc0x4","fecha":"2026-09-04","periodo":"2026-05","monto":1000,"nota":""},{"id":"idmtnpciqv4xbwlx","fecha":"2026-09-04","periodo":"2026-06","monto":1000,"nota":""}]}]}</script>
+<script type="application/json" id="app-state">{"meta": {"currency": "CLP", "updatedAt": "2026-09-05T01:26:34.471Z", "adminPasswordHash": "8ece6371b768f5b5730f11107353810689dae8524fb6a8c6ebe1badfc32a8527", "cuotaDefault": 1000}, "houses": [{"id": "idmtnp9msdn4uf70", "numero": "Casa 3", "rut": "15567265-K", "direccion": "Campina", "responsable": "Eduardo cartet", "telefono": "972141657", "cuota": 1000, "payments": [{"id": "idmtnpayfes2flb7", "fecha": "2026-09-04", "periodo": "2026-01", "monto": 1000, "nota": ""}, {"id": "idmtnpayffefq183", "fecha": "2026-09-04", "periodo": "2026-02", "monto": 1000, "nota": ""}]}, {"id": "idmtnpc4a0wxyvsm", "numero": "Casa 1", "rut": "13614553-3", "direccion": "Campina", "responsable": "Pamela", "telefono": "941635977", "cuota": 1000, "payments": [{"id": "idmtnpciqv7sjy8z", "fecha": "2026-09-04", "periodo": "2026-01", "monto": 1000, "nota": ""}, {"id": "idmtnpciqvzcohx2", "fecha": "2026-09-04", "periodo": "2026-02", "monto": 1000, "nota": ""}, {"id": "idmtnpciqviirup5", "fecha": "2026-09-04", "periodo": "2026-03", "monto": 1000, "nota": ""}, {"id": "idmtnpciqvj25w96", "fecha": "2026-09-04", "periodo": "2026-04", "monto": 1000, "nota": ""}, {"id": "idmtnpciqvasc0x4", "fecha": "2026-09-04", "periodo": "2026-05", "monto": 1000, "nota": ""}, {"id": "idmtnpciqv4xbwlx", "fecha": "2026-09-04", "periodo": "2026-06", "monto": 1000, "nota": ""}]}]}</script>
 <script>
 (function(){
   "use strict";
@@ -275,7 +287,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v16 · build 20260905-0900';
+  var APP_VERSION = 'v18 · build 20260905-1100';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -323,6 +335,18 @@
   };
 
   var DEFAULT_DIRECCION = 'La Campiña';
+  var HOUSE_NUMERO_OPTIONS = (function(){
+    var out = [];
+    for(var i=1;i<=15;i++){ out.push('Casa '+i); }
+    return out;
+  })();
+  function houseNumeroOptionsHtml(selected){
+    var opts = '<option value="" disabled'+(selected?'':' selected')+'>Selecciona…</option>';
+    opts += HOUSE_NUMERO_OPTIONS.map(function(opt){
+      return '<option value="'+escapeHtml(opt)+'"'+(opt===selected?' selected':'')+'>'+escapeHtml(opt)+'</option>';
+    }).join('');
+    return opts;
+  }
   var LS_KEY = 'cuotas-barrio-state-v1';
   var AUTH_KEY = 'cuotas-barrio-admin-unlocked-v1';
   var CONSULTA_LAST_RUT_KEY = 'cuotas-barrio-last-rut-v1';
@@ -628,8 +652,9 @@
     monthsCovered(h).forEach(function(m){ covered[m] = true; });
     var months = monthsOfYear(year);
     var headerHtml = withSwitcher
-      ? ('<div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-top:1rem;">'+
-          '<div class="hint" style="margin:0;">Cuotas '+year+'</div>'+yearSwitcherHtml()+
+      ? ('<div style="margin-top:1rem;">'+
+          '<div class="hint" style="margin:0 0 .5rem;">Cuotas '+year+'</div>'+
+          yearButtonsHtml(function(y){ return houseStatusForYear(h, y); })+
         '</div>')
       : ('<div class="hint" style="margin-top:1rem;">Cuotas '+year+'</div>');
     return (
@@ -685,6 +710,17 @@
     (h.payments||[]).forEach(function(p){ if((p.periodo||'').indexOf(y+'-')===0) set[p.periodo]=true; });
     return Object.keys(set).length;
   }
+  // Estado ("Al día" / "Pendiente" / "Sin pagos") según los meses transcurridos y
+  // pagados de UN año en particular, no según el mes actual del calendario. Así,
+  // un año ya completo en pagos se ve "Al día" en ese año aunque hoy sea otro año.
+  function houseStatusForYear(h, year){
+    year = year || currentYearNumber();
+    var mesesTranscurridos = monthsElapsedInYear(year);
+    var mp = houseMonthsPaidInYear(h, year);
+    if(mesesTranscurridos<=0 || mp<=0) return 'sin-pagos';
+    if(mp>=mesesTranscurridos) return 'al-dia';
+    return 'pendiente';
+  }
   function gastoYear(g){ return (g.fecha||'').slice(0,4); }
   function totalGastosList(list){
     return (list||[]).reduce(function(s,g){ return s + (Number(g.monto)||0); }, 0);
@@ -718,6 +754,38 @@
     return '<select data-action="select-year" aria-label="Año" style="width:auto;display:inline-block;">'+
       years.map(function(y){ return '<option value="'+y+'"'+(y===current?' selected':'')+'>'+y+'</option>'; }).join('')+
     '</select>';
+  }
+
+  // Selector de año para las cuotas: una fila horizontal de botones (2023 a 2026,
+  // fijo) en vez de un desplegable. colorFn(year), si se entrega, devuelve
+  // 'al-dia' / 'pendiente' / 'sin-pagos' para pintar cada botón verde/naranjo/rojo
+  // según el estado de las cuotas de ese año; sin colorFn el botón queda neutro
+  // (se usa igual para el selector de año de Gastos/Ingresos, sin este semáforo).
+  var YEAR_BUTTONS_RANGE = [2023, 2024, 2025, 2026];
+  function yearButtonsHtml(colorFn){
+    var current = ui.selectedYear;
+    return '<div class="year-btns" role="group" aria-label="Año">'+
+      YEAR_BUTTONS_RANGE.map(function(y){
+        var cls = 'year-btn';
+        if(colorFn){
+          var st = colorFn(y);
+          cls += st==='al-dia' ? ' year-btn-green' : (st==='pendiente' ? ' year-btn-orange' : ' year-btn-red');
+        }
+        if(y===current) cls += ' active';
+        return '<button type="button" class="'+cls+'" data-action="select-year" data-year="'+y+'">'+y+'</button>';
+      }).join('')+
+    '</div>';
+  }
+  // Estado agregado de TODAS las casas para un año: verde solo si todas están al
+  // día, rojo solo si ninguna casa tiene pagos ese año, naranjo en cualquier otro
+  // caso (mezcla de al día, pendientes y/o sin pagos).
+  function aggregateYearStatus(year){
+    var houses = STATE.houses||[];
+    if(houses.length===0) return 'sin-pagos';
+    var estados = houses.map(function(h){ return houseStatusForYear(h, year); });
+    if(estados.every(function(e){ return e==='al-dia'; })) return 'al-dia';
+    if(estados.every(function(e){ return e==='sin-pagos'; })) return 'sin-pagos';
+    return 'pendiente';
   }
 
   /* ---------- RUT (Chilean national ID) ---------- */
@@ -781,9 +849,11 @@
     if(saved){ runConsultaSearch(saved); }
   }
   function validateHouseForm(data, excludeId){
-    if(!data.numero || !data.numero.trim()) return { ok:false, message:'Ingresa el número o nombre de la casa.' };
+    if(!data.numero || !data.numero.trim()) return { ok:false, message:'Selecciona el número de la casa.' };
     if(!data.responsable || !data.responsable.trim()) return { ok:false, message:'Ingresa el nombre del responsable.' };
     if(data.cuota==='' || isNaN(Number(data.cuota)) || Number(data.cuota)<0) return { ok:false, message:'Ingresa una cuota mensual válida.' };
+    var dupeNumero = STATE.houses.some(function(h){ return h.numero===data.numero && h.id!==excludeId; });
+    if(dupeNumero) return { ok:false, message:'Ya hay una casa registrada como "'+data.numero+'". Elige otro número.' };
     var normalizedRut = normalizeRut(data.rut||'');
     if(!isValidRut(normalizedRut)) return { ok:false, message:'El RUT ingresado no es válido. Revisa el número y el dígito verificador (ej: 12.345.678-5).' };
     var dupe = STATE.houses.some(function(h){ return h.rut===normalizedRut && h.id!==excludeId; });
@@ -851,7 +921,7 @@
     var cuotasAnioRows = sorted.map(function(h){
       var pagadoAnio = housePaidInYear(h, selYear);
       var mesesPagadosAnio = houseMonthsPaidInYear(h, selYear);
-      var estadoAnio = (mesesTranscurridosSel<=0 || mesesPagadosAnio<=0) ? 'sin-pagos' : (mesesPagadosAnio>=mesesTranscurridosSel ? 'al-dia' : 'pendiente');
+      var estadoAnio = houseStatusForYear(h, selYear);
       return (
         '<tr>'+
           '<td>'+escapeHtml(h.numero)+'</td>'+
@@ -864,7 +934,8 @@
       );
     }).join('');
     var cuotasAnioHtml =
-      '<div class="section-head"><h2>Cuotas por año</h2>'+yearSwitcherHtml()+'</div>'+
+      '<div class="section-head"><h2>Cuotas por año</h2></div>'+
+      '<div style="margin-bottom:1rem;">'+yearButtonsHtml(aggregateYearStatus)+'</div>'+
       '<div class="card" style="overflow-x:auto;margin-bottom:1.75rem;">'+
         '<table class="report-table" style="min-width:520px;">'+
           '<thead><tr><th>Casa</th><th>Responsable</th><th>Cuota</th><th>Meses pagados</th><th>Pagado '+selYear+'</th><th>Estado</th></tr></thead>'+
@@ -905,7 +976,7 @@
       '<div class="card card-pad panel" '+(ui.addOpen?'':'hidden')+' id="add-house-panel">'+
         '<form data-action="add-house">'+
           '<div class="field-grid">'+
-            '<div class="field"><label for="f-numero">Casa / N° *</label><input id="f-numero" name="numero" required placeholder="Casa 12" value="'+escapeHtml(addVals.numero||'')+'"></div>'+
+            '<div class="field"><label for="f-numero">Casa / N° *</label><select id="f-numero" name="numero" required>'+houseNumeroOptionsHtml(addVals.numero||'')+'</select></div>'+
             '<div class="field"><label for="f-rut">RUT del propietario *</label><input id="f-rut" name="rut" required placeholder="12.345.678-5" value="'+escapeHtml(addVals.rut||'')+'"></div>'+
             '<div class="field"><label for="f-direccion">Dirección</label><input id="f-direccion" name="direccion" placeholder="Los Aromos 245" value="'+escapeHtml(addDireccionVal)+'"></div>'+
             '<div class="field"><label for="f-responsable">Responsable *</label><input id="f-responsable" name="responsable" required placeholder="Nombre del vecino" value="'+escapeHtml(addVals.responsable||'')+'"></div>'+
@@ -1090,7 +1161,10 @@
         '<div class="empty"><p>No se encontró esa casa.</p></div>'
       );
     }
-    var status = houseStatus(h);
+    // El pill "Al día"/"Pendiente"/"Sin pagos" se calcula según el año seleccionado,
+    // no según el mes actual del calendario: un año ya completo en pagos se ve
+    // "Al día" en ese año, aunque hoy sea otro año.
+    var status = houseStatusForYear(h, ui.selectedYear);
     var editing = ui.editingHouse===h.id;
     // Los meses pagados se muestran solo del año seleccionado, según el año que
     // cubre cada pago (periodo), no según la fecha en que se pagó: un pago
@@ -1104,7 +1178,7 @@
       infoHtml =
         '<form data-action="edit-house" data-house="'+h.id+'" class="panel">'+
           '<div class="field-grid">'+
-            '<div class="field"><label for="e-numero">Casa / N° *</label><input id="e-numero" name="numero" required value="'+escapeHtml(editVals?editVals.numero:h.numero)+'"></div>'+
+            '<div class="field"><label for="e-numero">Casa / N° *</label><select id="e-numero" name="numero" required>'+houseNumeroOptionsHtml(editVals?editVals.numero:h.numero)+'</select></div>'+
             '<div class="field"><label for="e-rut">RUT del propietario *</label><input id="e-rut" name="rut" required placeholder="12.345.678-5" value="'+escapeHtml(editVals?editVals.rut:formatRutDisplay(h.rut))+'"></div>'+
             '<div class="field"><label for="e-direccion">Dirección</label><input id="e-direccion" name="direccion" value="'+escapeHtml(editVals?editVals.direccion:(h.direccion||''))+'"></div>'+
             '<div class="field"><label for="e-responsable">Responsable *</label><input id="e-responsable" name="responsable" required value="'+escapeHtml(editVals?editVals.responsable:(h.responsable||''))+'"></div>'+
@@ -1252,9 +1326,9 @@
 
       var alDiaN=0, pendN=0, sinN=0;
       houses.forEach(function(h){
-        var mp = houseMonthsPaidInYear(h, year);
-        if(mesesTranscurridos<=0 || mp<=0){ sinN++; }
-        else if(mp>=mesesTranscurridos){ alDiaN++; }
+        var estado = houseStatusForYear(h, year);
+        if(estado==='sin-pagos'){ sinN++; }
+        else if(estado==='al-dia'){ alDiaN++; }
         else { pendN++; }
       });
 
@@ -1262,8 +1336,8 @@
         var pagadoAnio = housePaidInYear(h, year);
         var esperadoAnio = houseExpectedToDate(h, year);
         var dif = pagadoAnio - esperadoAnio;
-        var mp = houseMonthsPaidInYear(h, year);
-        var statusLabel = (mesesTranscurridos<=0||mp<=0) ? 'Sin pagos' : (mp>=mesesTranscurridos ? 'Al día' : 'Pendiente');
+        var estadoH = houseStatusForYear(h, year);
+        var statusLabel = estadoH==='al-dia' ? 'Al día' : (estadoH==='pendiente' ? 'Pendiente' : 'Sin pagos');
         return (
           '<tr>'+
             '<td>'+escapeHtml(h.numero)+'</td>'+
@@ -1571,7 +1645,9 @@
     } else if(c.status==='found'){
       var h = getHouse(c.houseId);
       if(h){
-        var status = houseStatus(h);
+        // Igual que en el panel de administración: el estado se calcula según el
+        // año seleccionado, no según el mes actual del calendario.
+        var status = houseStatusForYear(h, ui.selectedYear);
         // Igual que en el panel de administración: los meses pagados se listan
         // solo del año seleccionado, según el año que cubre cada pago (periodo).
         var pays = sortedPayments(h).filter(function(p){ return (p.periodo||'').indexOf(String(ui.selectedYear)+'-')===0; });
@@ -1662,6 +1738,7 @@
     if(hash==='consulta'){ root.innerHTML = renderConsulta(); return; }
     if(!STATE.meta || !STATE.meta.adminPasswordHash){ root.innerHTML = renderAuthScreen('setup'); return; }
     if(!auth.unlocked){ root.innerHTML = renderAuthScreen('login'); return; }
+    maybeMigrateLegacyHouseNumeros();
     var repMatch = hash.match(/^reporte(?:\/(\d{4}))?$/);
     if(repMatch){ root.innerHTML = renderReporte(repMatch[1] ? Number(repMatch[1]) : null); return; }
     if(hash==='gastos'){ root.innerHTML = renderGastos(); return; }
@@ -1672,6 +1749,46 @@
 
   /* ---------- mutations ---------- */
   function touch(){ STATE.meta = STATE.meta || {}; STATE.meta.updatedAt = new Date().toISOString(); }
+
+  // Migración de casas antiguas creadas antes de que "Casa / N°" fuera un
+  // desplegable: convierte números sueltos (ej: "3") al formato "Casa 3"
+  // cuando corresponde a una opción válida del 1 al 15, sin tocar nombres
+  // personalizados que no calzan con ese patrón.
+  var legacyNumeroMigrationDone = false;
+  function migrateLegacyHouseNumeros(){
+    var changed = false;
+    var used = {};
+    (STATE.houses||[]).forEach(function(h){ used[h.numero] = true; });
+    (STATE.houses||[]).forEach(function(h){
+      var s = String(h.numero||'').trim();
+      if(/^\d+$/.test(s)){
+        var n = parseInt(s, 10);
+        if(n>=1 && n<=15){
+          var candidate = 'Casa '+n;
+          if(candidate!==h.numero && !used[candidate]){
+            delete used[h.numero];
+            h.numero = candidate;
+            used[candidate] = true;
+            changed = true;
+          }
+        }
+      }
+    });
+    return changed;
+  }
+  function maybeMigrateLegacyHouseNumeros(){
+    if(legacyNumeroMigrationDone) return;
+    if(!auth.unlocked || readOnly) return;
+    // Espera a que los datos reales (panel de Claude o nube) terminen de resolverse
+    // antes de tocar STATE.houses, para no pisar datos frescos con la semilla local.
+    if(!artifactChecked) return;
+    if(!artifactNS && firebaseConfigured && !firebaseChecked) return;
+    legacyNumeroMigrationDone = true;
+    if(migrateLegacyHouseNumeros()){
+      touch();
+      persist();
+    }
+  }
 
   function addHouse(data, rut){
     STATE.houses.push({
@@ -2031,6 +2148,11 @@
       return;
     }
     if(action==='toggle-add-form'){ ui.addOpen = !ui.addOpen; ui.formError = null; render(); return; }
+    if(action==='select-year'){
+      var yBtn = parseInt(el.getAttribute('data-year'), 10);
+      if(yBtn){ ui.selectedYear = yBtn; render(); }
+      return;
+    }
     if(action==='quick-pay'){ quickPay(el.getAttribute('data-house')); persist(); return; }
     if(action==='start-edit-house'){ ui.editingHouse = el.getAttribute('data-house'); ui.formError = null; render(); return; }
     if(action==='cancel-edit-house'){ ui.editingHouse = null; ui.formError = null; render(); return; }
