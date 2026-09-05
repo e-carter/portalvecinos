@@ -267,7 +267,7 @@
 </head>
 <body>
 <div class="shell" id="root"></div>
-<script type="application/json" id="app-state">{"meta":{"currency":"CLP","updatedAt":"2026-09-02T02:09:53.968Z","adminPasswordHash":"d48f650c9b96e0b89fbbbcf3f5fff9ae6a1a998d48f76c34b7b62e92e50c32e9"},"houses":[{"id":"idmtgpz4ksk7vvm0","numero":"12","direccion":"campiña","responsable":"eduardo","telefono":"972141657","cuota":15000,"payments":[{"id":"idmtgpzbtngq20cd","fecha":"2026-08-31","periodo":"2026-08","monto":15000,"nota":""},{"id":"idmtgq049tz1su6g","fecha":"2026-09-26","periodo":"2026-08","monto":12000,"nota":""}]},{"id":"idmtjgkoj49ess40","numero":"qwe","rut":"15567265-K","direccion":"23","responsable":"23","telefono":"","cuota":243433,"payments":[]}]}</script>
+<script type="application/json" id="app-state">{"meta":{"currency":"CLP","updatedAt":"2026-09-05T01:26:34.471Z","adminPasswordHash":"8ece6371b768f5b5730f11107353810689dae8524fb6a8c6ebe1badfc32a8527","cuotaDefault":1000},"houses":[{"id":"idmtnp9msdn4uf70","numero":"3","rut":"15567265-K","direccion":"Campina","responsable":"Eduardo cartet","telefono":"972141657","cuota":1000,"payments":[{"id":"idmtnpayfes2flb7","fecha":"2026-09-04","periodo":"2026-01","monto":1000,"nota":""},{"id":"idmtnpayffefq183","fecha":"2026-09-04","periodo":"2026-02","monto":1000,"nota":""}]},{"id":"idmtnpc4a0wxyvsm","numero":"1","rut":"13614553-3","direccion":"Campina","responsable":"Pamela","telefono":"941635977","cuota":1000,"payments":[{"id":"idmtnpciqv7sjy8z","fecha":"2026-09-04","periodo":"2026-01","monto":1000,"nota":""},{"id":"idmtnpciqvzcohx2","fecha":"2026-09-04","periodo":"2026-02","monto":1000,"nota":""},{"id":"idmtnpciqviirup5","fecha":"2026-09-04","periodo":"2026-03","monto":1000,"nota":""},{"id":"idmtnpciqvj25w96","fecha":"2026-09-04","periodo":"2026-04","monto":1000,"nota":""},{"id":"idmtnpciqvasc0x4","fecha":"2026-09-04","periodo":"2026-05","monto":1000,"nota":""},{"id":"idmtnpciqv4xbwlx","fecha":"2026-09-04","periodo":"2026-06","monto":1000,"nota":""}]}]}</script>
 <script>
 (function(){
   "use strict";
@@ -275,7 +275,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v13 · build 20260905-0600';
+  var APP_VERSION = 'v14 · build 20260905-0700';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -317,7 +317,7 @@
   var ui = {
     addOpen:false, editingHouse:null, confirmDeleteHouse:null, confirmDeletePayment:null, saving:false,
     formError:null, authError:null, changePwOpen:false, changePwError:null,
-    importPending:null, importError:null, confirmDeleteGasto:null, confirmDeleteHouseYear:null,
+    importPending:null, importError:null, confirmDeleteGasto:null, confirmDeleteIngreso:null, confirmDeleteHouseYear:null,
     selectedYear: new Date().getFullYear(),
     consulta:{ rut:'', status:'idle', houseId:null, message:'' }
   };
@@ -482,7 +482,7 @@
   function startFirebasePolling(){
     if(firebasePollTimer){ clearInterval(firebasePollTimer); }
     firebasePollTimer = setInterval(function(){
-      var editing = ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.importPending || ui.confirmDeleteHouseYear || ui.confirmDeleteGasto;
+      var editing = ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.importPending || ui.confirmDeleteHouseYear || ui.confirmDeleteGasto || ui.confirmDeleteIngreso;
       if(editing) return;
       fetchFirebaseState().then(function(remote){
         firebaseOk = true;
@@ -689,6 +689,8 @@
   function totalGastosList(list){
     return (list||[]).reduce(function(s,g){ return s + (Number(g.monto)||0); }, 0);
   }
+  function ingresoYear(g){ return (g.fecha||'').slice(0,4); }
+  var totalIngresosList = totalGastosList;
   function availableYears(){
     var set = {};
     var current = currentYearNumber();
@@ -701,6 +703,10 @@
     });
     (STATE.gastos||[]).forEach(function(g){
       var y = parseInt(gastoYear(g), 10);
+      if(y) set[y] = true;
+    });
+    (STATE.ingresos||[]).forEach(function(g){
+      var y = parseInt(ingresoYear(g), 10);
       if(y) set[y] = true;
     });
     return Object.keys(set).map(Number).sort(function(a,b){ return b-a; });
@@ -798,6 +804,7 @@
     report:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h9v14h-9z"/><path d="M8 7h4"/><path d="M8 10h4"/><path d="M8 13h2.5"/></svg>',
     printer:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7V3.5h8V7"/><rect x="4" y="7" width="12" height="6.5" rx="1"/><path d="M6 12.5h8V16.5H6z"/></svg>',
     gastos:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h14v9H3z"/><path d="M3 7l2-3h10l2 3"/><circle cx="10" cy="11.5" r="1.6"/></svg>',
+    ingresos:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13l4.5-5 3 3L16 5"/><path d="M11.5 5H16v4.5"/></svg>',
     alert:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M10 6.2v4.6"/><circle cx="10" cy="13.6" r="0.9" fill="currentColor" stroke="none"/></svg>'
   };
   function statusPill(status){
@@ -1049,6 +1056,7 @@
         '<div class="brand"><h1>Cuotas del Barrio</h1><p>Panel de cuotas vecinales</p></div>'+
         '<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">'+
           savePillHtml()+
+          '<a href="#/ingresos" class="btn btn-ghost btn-sm">'+ICON.ingresos+' Ingresos</a>'+
           '<a href="#/gastos" class="btn btn-ghost btn-sm">'+ICON.gastos+' Gastos</a>'+
           '<a href="#/reporte" class="btn btn-ghost btn-sm">'+ICON.report+' Generar reporte</a>'+
           (readOnly ? '' : '<button type="button" class="btn btn-ghost btn-sm" data-action="toggle-change-pw">Cambiar contraseña</button>')+
@@ -1213,6 +1221,7 @@
     var isYearMode = yearParam != null;
     var houses = STATE.houses.slice().sort(function(a,b){ return (a.numero||'').localeCompare(b.numero||'', 'es', {numeric:true}); });
     var gastos = (STATE.gastos||[]).slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); });
+    var ingresos = (STATE.ingresos||[]).slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); });
     var years = availableYears();
 
     var switcherHtml =
@@ -1232,7 +1241,9 @@
       var diferenciaAnio = totalPagadoAnio - totalEsperadoAnio;
       var gastosAnio = gastos.filter(function(g){ return gastoYear(g)===String(year); });
       var totalGastosAnio = totalGastosList(gastosAnio);
-      var balanceAnio = totalPagadoAnio - totalGastosAnio;
+      var ingresosAnio = ingresos.filter(function(g){ return ingresoYear(g)===String(year); });
+      var totalIngresosAnio = totalIngresosList(ingresosAnio);
+      var balanceAnio = totalPagadoAnio + totalIngresosAnio - totalGastosAnio;
 
       var alDiaN=0, pendN=0, sinN=0;
       houses.forEach(function(h){
@@ -1266,6 +1277,10 @@
         return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
       }).join('');
 
+      var ingresosFilasAnio = ingresosAnio.map(function(g){
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+      }).join('');
+
       var mesesLabelAnio = mesesTranscurridos<=0 ? 'aún no comienza' : ('enero a '+escapeHtml(monthLabel(year+'-'+pad(Math.min(mesesTranscurridos,12)))));
 
       bodyHtml =
@@ -1277,17 +1292,25 @@
           '<div><span class="k">Recaudado '+year+'</span><span class="v tabular">'+fmtMoney(totalPagadoAnio)+'</span></div>'+
           '<div><span class="k">Debería estar pagado a la fecha</span><span class="v tabular">'+fmtMoney(totalEsperadoAnio)+'</span></div>'+
           '<div><span class="k">Diferencia</span><span class="v tabular'+(diferenciaAnio<0?' report-neg':'')+'">'+fmtMoney(diferenciaAnio)+'</span></div>'+
+          '<div><span class="k">Otros ingresos '+year+'</span><span class="v tabular">'+fmtMoney(totalIngresosAnio)+'</span></div>'+
           '<div><span class="k">Gastos '+year+'</span><span class="v tabular">'+fmtMoney(totalGastosAnio)+'</span></div>'+
           '<div><span class="k">Balance '+year+'</span><span class="v tabular'+(balanceAnio<0?' report-neg':'')+'">'+fmtMoney(balanceAnio)+'</span></div>'+
           '<div><span class="k">Casas al día</span><span class="v tabular">'+alDiaN+' / '+houses.length+'</span></div>'+
           '<div><span class="k">Casas pendientes</span><span class="v tabular">'+pendN+'</span></div>'+
           '<div><span class="k">Casas sin pagos</span><span class="v tabular">'+sinN+'</span></div>'+
         '</div>'+
-        '<div class="hint" style="margin:.3rem 0 1rem;">"Debería estar pagado a la fecha" se calcula como la cuota mensual de cada casa multiplicada por los meses transcurridos de '+year+' ('+mesesLabelAnio+').</div>'+
+        '<div class="hint" style="margin:.3rem 0 1rem;">"Debería estar pagado a la fecha" se calcula como la cuota mensual de cada casa multiplicada por los meses transcurridos de '+year+' ('+mesesLabelAnio+'). El balance suma lo recaudado por cuotas más otros ingresos, menos los gastos.</div>'+
         '<div style="overflow-x:auto;">'+
         '<table class="report-table">'+
           '<thead><tr><th>Casa</th><th>Responsable</th><th>RUT</th><th>Cuota</th><th>Pagado '+year+'</th><th>Esperado a la fecha</th><th>Diferencia</th><th>Estado</th></tr></thead>'+
           '<tbody>'+(filasHtml || '<tr><td colspan="8">No hay casas registradas.</td></tr>')+'</tbody>'+
+        '</table>'+
+        '</div>'+
+        '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Otros ingresos de la asociación — '+year+'</h2>'+
+        '<div style="overflow-x:auto;">'+
+        '<table class="report-table">'+
+          '<thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th></tr></thead>'+
+          '<tbody>'+(ingresosFilasAnio || '<tr><td colspan="3">No hay ingresos registrados en '+year+'.</td></tr>')+'</tbody>'+
         '</table>'+
         '</div>'+
         '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Gastos de la asociación — '+year+'</h2>'+
@@ -1300,7 +1323,8 @@
     } else {
       var totalHistorico = houses.reduce(function(s,h){ return s + houseTotal(h); }, 0);
       var totalGastosHist = totalGastosList(gastos);
-      var balanceHist = totalHistorico - totalGastosHist;
+      var totalIngresosHist = totalIngresosList(ingresos);
+      var balanceHist = totalHistorico + totalIngresosHist - totalGastosHist;
       var yearActual = currentYearNumber();
       var mesActual = currentMonthNumber();
       var mesActualLabel = monthLabel(yearActual+'-'+pad(mesActual));
@@ -1331,6 +1355,10 @@
         return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+escapeHtml(gastoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
       }).join('');
 
+      var ingresosFilasHist = ingresos.map(function(g){
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+escapeHtml(ingresoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+      }).join('');
+
       bodyHtml =
         '<header class="report-head">'+
           '<h1>Cuotas del Barrio</h1>'+
@@ -1338,6 +1366,7 @@
         '</header>'+
         '<div class="report-summary">'+
           '<div><span class="k">Recaudado histórico</span><span class="v tabular">'+fmtMoney(totalHistorico)+'</span></div>'+
+          '<div><span class="k">Otros ingresos histórico</span><span class="v tabular">'+fmtMoney(totalIngresosHist)+'</span></div>'+
           '<div><span class="k">Gastos histórico</span><span class="v tabular">'+fmtMoney(totalGastosHist)+'</span></div>'+
           '<div><span class="k">Balance histórico</span><span class="v tabular'+(balanceHist<0?' report-neg':'')+'">'+fmtMoney(balanceHist)+'</span></div>'+
           '<div><span class="k">Recaudado en '+yearActual+' (a '+escapeHtml(mesActualLabel)+')</span><span class="v tabular">'+fmtMoney(totalPagadoEsteAnio)+'</span></div>'+
@@ -1352,6 +1381,13 @@
         '<table class="report-table">'+
           '<thead><tr><th>Casa</th><th>Responsable</th><th>RUT</th><th>Cuota</th><th>Pagado histórico</th><th>Estado actual</th></tr></thead>'+
           '<tbody>'+(filasHtml || '<tr><td colspan="6">No hay casas registradas.</td></tr>')+'</tbody>'+
+        '</table>'+
+        '</div>'+
+        '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Otros ingresos de la asociación — histórico</h2>'+
+        '<div style="overflow-x:auto;">'+
+        '<table class="report-table">'+
+          '<thead><tr><th>Fecha</th><th>Concepto</th><th>Año</th><th>Monto</th></tr></thead>'+
+          '<tbody>'+(ingresosFilasHist || '<tr><td colspan="4">No hay ingresos registrados.</td></tr>')+'</tbody>'+
         '</table>'+
         '</div>'+
         '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Gastos de la asociación — histórico</h2>'+
@@ -1439,6 +1475,76 @@
       formHtml+
       summaryHtml+
       '<div class="section-head"><h2>Historial de gastos<span class="count-badge">'+gastos.length+'</span></h2></div>'+
+      tableHtml
+    );
+  }
+
+  /* ---------- ingresos de la asociación ---------- */
+  function renderIngresos(){
+    var ingresos = (STATE.ingresos||[]).slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); });
+    var totalGeneral = totalIngresosList(ingresos);
+    var selYear = ui.selectedYear;
+    var ingresosAnio = ingresos.filter(function(g){ return ingresoYear(g)===String(selYear); });
+    var totalAnio = totalIngresosList(ingresosAnio);
+
+    var addErr = (ui.formError && ui.formError.form==='add-ingreso') ? ui.formError : null;
+    var addVals = (addErr && addErr.values) ? addErr.values : {};
+
+    var formHtml = readOnly ? '' :
+      '<div class="card card-pad" style="margin-bottom:1.5rem;">'+
+        '<h2 style="font-size:1rem;margin-bottom:.6rem;">Agregar ingreso</h2>'+
+        '<form data-action="add-ingreso">'+
+          '<div class="field-grid">'+
+            '<div class="field"><label for="i-fecha">Fecha *</label><input id="i-fecha" name="fecha" type="date" required value="'+escapeHtml(addVals.fecha||todayISO())+'"></div>'+
+            '<div class="field"><label for="i-concepto">Concepto *</label><input id="i-concepto" name="concepto" required placeholder="Ej: rifa, arriendo de la sede" value="'+escapeHtml(addVals.concepto||'')+'"></div>'+
+            '<div class="field"><label for="i-monto">Monto *</label><input id="i-monto" name="monto" type="number" min="0" step="1" required inputmode="numeric" placeholder="15000" value="'+escapeHtml(addVals.monto||'')+'"></div>'+
+          '</div>'+
+          (addErr ? '<div class="field-error">'+escapeHtml(addErr.message)+'</div>' : '')+
+          '<div class="form-actions"><button type="submit" class="btn btn-primary">'+ICON.plus+' Agregar ingreso</button></div>'+
+        '</form>'+
+      '</div>';
+
+    var summaryHtml =
+      '<div class="stats" style="margin-bottom:1.5rem;">'+
+        '<div class="stat accent"><div class="label">Ingresos histórico</div><div class="value tabular">'+fmtMoney(totalGeneral)+'</div><div class="sub">'+ingresos.length+' registro'+(ingresos.length===1?'':'s')+'</div></div>'+
+        '<div class="stat"><div class="label">Ingresos '+selYear+'</div><div class="value tabular">'+fmtMoney(totalAnio)+'</div><div class="sub" style="display:flex;align-items:center;gap:.4rem;">'+ingresosAnio.length+' registro'+(ingresosAnio.length===1?'':'s')+' · '+yearSwitcherHtml()+'</div></div>'+
+      '</div>';
+
+    var tableHtml;
+    if(ingresos.length===0){
+      tableHtml = '<div class="empty"><p>Todavía no hay ingresos registrados.</p></div>';
+    } else {
+      tableHtml =
+        '<div class="gasto-table">'+
+          '<div class="gasto-row head"><span>Fecha</span><span>Concepto</span><span>Monto</span><span></span></div>'+
+          ingresos.map(function(g){
+            var confirmingDel = ui.confirmDeleteIngreso===g.id;
+            return (
+              '<div class="gasto-row">'+
+                '<span data-label="Fecha" class="tabular">'+dateLabel(g.fecha)+'</span>'+
+                '<span data-label="Concepto">'+escapeHtml(g.concepto||'—')+'</span>'+
+                '<span data-label="Monto" class="tabular">'+fmtMoney(g.monto)+'</span>'+
+                (readOnly ? '<span></span>' :
+                  '<span class="pay-del">'+
+                    (confirmingDel
+                      ? '<button type="button" class="btn btn-danger btn-sm" data-action="delete-ingreso" data-ingreso="'+g.id+'" title="Confirmar eliminar">Sí</button>'
+                      : '<button type="button" class="btn btn-ghost btn-icon" data-action="arm-delete-ingreso" data-ingreso="'+g.id+'" title="Eliminar ingreso">'+ICON.trash+'</button>')+
+                  '</span>')+
+              '</div>'
+            );
+          }).join('')+
+        '</div>';
+    }
+
+    return (
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">'+
+        '<a href="#/" class="back-link" style="margin-bottom:1rem;">'+ICON.arrowLeft+' Volver al panel</a>'+
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
+      '</div>'+
+      '<header class="topbar"><div class="brand"><h1>Ingresos de la asociación</h1><p>Otros ingresos (fuera de las cuotas), con fecha y año asociado</p></div></header>'+
+      formHtml+
+      summaryHtml+
+      '<div class="section-head"><h2>Historial de ingresos<span class="count-badge">'+ingresos.length+'</span></h2></div>'+
       tableHtml
     );
   }
@@ -1549,6 +1655,7 @@
     var repMatch = hash.match(/^reporte(?:\/(\d{4}))?$/);
     if(repMatch){ root.innerHTML = renderReporte(repMatch[1] ? Number(repMatch[1]) : null); return; }
     if(hash==='gastos'){ root.innerHTML = renderGastos(); return; }
+    if(hash==='ingresos'){ root.innerHTML = renderIngresos(); return; }
     var m = hash.match(/^casa\/(.+)$/);
     root.innerHTML = m ? renderHouseDetail(decodeURIComponent(m[1])) : renderHome();
   }
@@ -1621,6 +1728,15 @@
     STATE.gastos = (STATE.gastos||[]).filter(function(g){ return g.id!==id; });
     touch();
   }
+  function addIngreso(data){
+    STATE.ingresos = STATE.ingresos || [];
+    STATE.ingresos.push({ id: uid(), fecha: data.fecha, concepto: (data.concepto||'').trim(), monto: Number(data.monto)||0 });
+    touch();
+  }
+  function deleteIngresoById(id){
+    STATE.ingresos = (STATE.ingresos||[]).filter(function(g){ return g.id!==id; });
+    touch();
+  }
 
   function toast(msg){
     var el = document.createElement('div');
@@ -1645,7 +1761,7 @@
     var el = document.activeElement;
     if(el && (el.tagName==='INPUT' || el.tagName==='TEXTAREA' || el.tagName==='SELECT')) return true;
     return !!(ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment ||
-      ui.importPending || ui.confirmDeleteHouseYear || ui.confirmDeleteGasto || ui.saving);
+      ui.importPending || ui.confirmDeleteHouseYear || ui.confirmDeleteGasto || ui.confirmDeleteIngreso || ui.saving);
   }
   function checkForNewVersion(){
     if(!isConsultaRoute()) return; // el panel de administración no se autoactualiza
@@ -1884,6 +2000,13 @@
       ui.formError = null;
       addGasto(data);
       persist();
+    } else if(action==='add-ingreso'){
+      if(!data.fecha){ ui.formError = { form:'add-ingreso', message:'Ingresa la fecha del ingreso.', values:data }; render(); return; }
+      if(!data.concepto || !data.concepto.trim()){ ui.formError = { form:'add-ingreso', message:'Ingresa un concepto para el ingreso.', values:data }; render(); return; }
+      if(data.monto==='' || isNaN(Number(data.monto)) || Number(data.monto)<0){ ui.formError = { form:'add-ingreso', message:'Ingresa un monto válido.', values:data }; render(); return; }
+      ui.formError = null;
+      addIngreso(data);
+      persist();
     }
   });
 
@@ -1984,6 +2107,13 @@
       persist();
       return;
     }
+    if(action==='arm-delete-ingreso'){ ui.confirmDeleteIngreso = el.getAttribute('data-ingreso'); render(); return; }
+    if(action==='delete-ingreso'){
+      deleteIngresoById(el.getAttribute('data-ingreso'));
+      ui.confirmDeleteIngreso = null;
+      persist();
+      return;
+    }
   });
 
   document.addEventListener('change', function(e){
@@ -2006,7 +2136,7 @@
   window.addEventListener('hashchange', function(){
     ui.editingHouse = null; ui.confirmDeleteHouse = null; ui.confirmDeletePayment = null; ui.formError = null;
     ui.authError = null; ui.changePwOpen = false; ui.changePwError = null;
-    ui.importPending = null; ui.importError = null; ui.confirmDeleteGasto = null; ui.confirmDeleteHouseYear = null;
+    ui.importPending = null; ui.importError = null; ui.confirmDeleteGasto = null; ui.confirmDeleteIngreso = null; ui.confirmDeleteHouseYear = null;
     render();
   });
 
