@@ -254,6 +254,15 @@
     .gasto-row > *::before{ content:attr(data-label); font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); }
     .gasto-row .pay-del{ position:absolute; top:.6rem; right:.6rem; }
   }
+
+  .announce-banner{
+    display:flex; align-items:flex-start; gap:.6em;
+    background:var(--danger-soft); color:var(--danger); border:1px solid var(--danger);
+    border-radius:9px; padding:.8em 1em; font-size:.92rem; font-weight:600;
+    margin-top:1rem; white-space:pre-wrap; line-height:1.4;
+  }
+  .announce-banner .announce-icon{ flex:none; width:1.3em; height:1.3em; margin-top:.05em; }
+  .announce-banner .announce-icon svg{ width:100%; height:100%; }
 </style>
 </head>
 <body>
@@ -266,7 +275,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v8 · build 20260905-0100';
+  var APP_VERSION = 'v10 · build 20260905-0300';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -313,6 +322,7 @@
     consulta:{ rut:'', status:'idle', houseId:null, message:'' }
   };
 
+  var DEFAULT_DIRECCION = 'La Campiña';
   var LS_KEY = 'cuotas-barrio-state-v1';
   var AUTH_KEY = 'cuotas-barrio-admin-unlocked-v1';
   var auth = { unlocked:false };
@@ -760,7 +770,8 @@
     upload:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12V3"/><path d="M6.5 6.5L10 3l3.5 3.5"/><path d="M4 14.5v1a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>',
     report:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h9v14h-9z"/><path d="M8 7h4"/><path d="M8 10h4"/><path d="M8 13h2.5"/></svg>',
     printer:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7V3.5h8V7"/><rect x="4" y="7" width="12" height="6.5" rx="1"/><path d="M6 12.5h8V16.5H6z"/></svg>',
-    gastos:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h14v9H3z"/><path d="M3 7l2-3h10l2 3"/><circle cx="10" cy="11.5" r="1.6"/></svg>'
+    gastos:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h14v9H3z"/><path d="M3 7l2-3h10l2 3"/><circle cx="10" cy="11.5" r="1.6"/></svg>',
+    alert:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="8"/><path d="M10 6.2v4.6"/><circle cx="10" cy="13.6" r="0.9" fill="currentColor" stroke="none"/></svg>'
   };
   function statusPill(status){
     if(status==='al-dia') return '<span class="pill pill-ok">'+ICON.check+' Al día</span>';
@@ -855,13 +866,14 @@
     var addErr = (ui.formError && ui.formError.form==='add-house') ? ui.formError : null;
     var addVals = (addErr && addErr.values) ? addErr.values : {};
     var addCuotaVal = addErr ? (addVals.cuota||'') : (STATE.meta.cuotaDefault||'');
+    var addDireccionVal = addErr ? (addVals.direccion||'') : DEFAULT_DIRECCION;
     var addFormHtml =
       '<div class="card card-pad panel" '+(ui.addOpen?'':'hidden')+' id="add-house-panel">'+
         '<form data-action="add-house">'+
           '<div class="field-grid">'+
             '<div class="field"><label for="f-numero">Casa / N° *</label><input id="f-numero" name="numero" required placeholder="Casa 12" value="'+escapeHtml(addVals.numero||'')+'"></div>'+
             '<div class="field"><label for="f-rut">RUT del propietario *</label><input id="f-rut" name="rut" required placeholder="12.345.678-5" value="'+escapeHtml(addVals.rut||'')+'"></div>'+
-            '<div class="field"><label for="f-direccion">Dirección</label><input id="f-direccion" name="direccion" placeholder="Los Aromos 245" value="'+escapeHtml(addVals.direccion||'')+'"></div>'+
+            '<div class="field"><label for="f-direccion">Dirección</label><input id="f-direccion" name="direccion" placeholder="Los Aromos 245" value="'+escapeHtml(addDireccionVal)+'"></div>'+
             '<div class="field"><label for="f-responsable">Responsable *</label><input id="f-responsable" name="responsable" required placeholder="Nombre del vecino" value="'+escapeHtml(addVals.responsable||'')+'"></div>'+
             '<div class="field"><label for="f-telefono">Teléfono</label><input id="f-telefono" name="telefono" placeholder="+56 9…" inputmode="tel" value="'+escapeHtml(addVals.telefono||'')+'"></div>'+
             '<div class="field"><label for="f-cuota">Cuota mensual *</label><input id="f-cuota" name="cuota" type="number" min="0" step="1" required placeholder="15000" inputmode="numeric" value="'+escapeHtml(addCuotaVal)+'"></div>'+
@@ -977,6 +989,16 @@
         '</div>'+
       '</div>';
 
+    var mensajeGeneralHtml = readOnly ? '' :
+      '<div class="card card-pad" style="margin-bottom:1.5rem;">'+
+        '<div style="font-weight:600;">Mensaje para los vecinos</div>'+
+        '<div class="hint" style="margin-top:.2rem;margin-bottom:.6rem;">Aparece en la ficha de cada casa cuando un vecino consulta su cuota en el portal. Déjalo vacío para no mostrar nada.</div>'+
+        '<form data-action="set-mensaje-general">'+
+          '<div class="field"><textarea name="mensajeGeneral" rows="3" placeholder="Ej: La próxima reunión de vecinos es el 15 de septiembre a las 19:00 en la sede social.">'+escapeHtml(STATE.meta.mensajeGeneral||'')+'</textarea></div>'+
+          '<div class="form-actions"><button type="submit" class="btn btn-ghost btn-sm">Guardar mensaje</button></div>'+
+        '</form>'+
+      '</div>';
+
     var changePwHtml = '';
     if(!readOnly){
       changePwHtml =
@@ -1011,6 +1033,7 @@
       backupHtml+
       cuotaDefaultHtml+
       portalBanner+
+      mensajeGeneralHtml+
       statsHtml+
       cuotasAnioHtml+
       '<div class="section-head"><h2>Casas<span class="count-badge">'+houses.length+'</span></h2>'+
@@ -1415,6 +1438,7 @@
             '<div class="detail-head" style="margin-bottom:0;flex-wrap:wrap;">'+
               '<h2 style="font-size:1.3rem;font-family:var(--font-display);">'+escapeHtml(h.numero)+'</h2>'+statusPill(status)+
             '</div>'+
+            (STATE.meta && STATE.meta.mensajeGeneral ? '<div class="announce-banner"><span class="announce-icon">'+ICON.alert+'</span><span>'+escapeHtml(STATE.meta.mensajeGeneral)+'</span></div>' : '')+
             '<div class="info-row" style="margin-top:1rem;">'+
               '<div><div class="k">Dirección</div><div class="v">'+escapeHtml(h.direccion||'—')+'</div></div>'+
               '<div><div class="k">Responsable</div><div class="v">'+escapeHtml(h.responsable||'—')+'</div></div>'+
@@ -1453,7 +1477,7 @@
         '</form>'+
       '</div>'+
       resultHtml+
-      '<p style="margin-top:2.5rem;"><a href="#/" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Acceso administrador</a></p>'
+      (auth.unlocked ? '<p style="margin-top:2.5rem;"><a href="#/" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Volver al panel</a></p>' : '')
     );
   }
 
@@ -1509,7 +1533,7 @@
       id: uid(),
       numero: data.numero.trim(),
       rut: rut,
-      direccion: (data.direccion||'').trim(),
+      direccion: (data.direccion||'').trim() || DEFAULT_DIRECCION,
       responsable: (data.responsable||'').trim(),
       telefono: (data.telefono||'').trim(),
       cuota: Number(data.cuota)||0,
@@ -1782,6 +1806,11 @@
     } else if(action==='set-cuota-default'){
       STATE.meta = STATE.meta || {};
       STATE.meta.cuotaDefault = Number(data.cuotaDefault)||0;
+      touch();
+      persist();
+    } else if(action==='set-mensaje-general'){
+      STATE.meta = STATE.meta || {};
+      STATE.meta.mensajeGeneral = (data.mensajeGeneral||'').trim();
       touch();
       persist();
     } else if(action==='add-gasto'){
