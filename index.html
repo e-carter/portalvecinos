@@ -240,6 +240,20 @@
     .report-table{ font-size:11pt; }
     .report-table th, .report-table td{ padding:.35rem .5rem; }
   }
+
+  .gasto-table{ display:flex; flex-direction:column; gap:.4rem; margin-top:.9rem; }
+  .gasto-row{
+    display:grid; grid-template-columns:110px 1fr 130px 34px; gap:.7rem; align-items:center;
+    padding:.6rem .7rem; border-radius:9px; background:var(--surface-2);
+  }
+  .gasto-row.head{ background:transparent; padding:.2rem .7rem; color:var(--ink-faint); font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; }
+  @media (max-width:620px){
+    .gasto-row{ grid-template-columns:1fr 1fr; grid-auto-flow:row; row-gap:.25rem; position:relative; padding:.75rem .8rem; }
+    .gasto-row.head{ display:none; }
+    .gasto-row > *{ display:flex; flex-direction:column; }
+    .gasto-row > *::before{ content:attr(data-label); font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); }
+    .gasto-row .pay-del{ position:absolute; top:.6rem; right:.6rem; }
+  }
 </style>
 </head>
 <body>
@@ -252,7 +266,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v6 · build 20260904-2350';
+  var APP_VERSION = 'v8 · build 20260905-0100';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -294,7 +308,8 @@
   var ui = {
     addOpen:false, editingHouse:null, confirmDeleteHouse:null, confirmDeletePayment:null, saving:false,
     formError:null, authError:null, changePwOpen:false, changePwError:null,
-    importPending:null, importError:null,
+    importPending:null, importError:null, confirmDeleteGasto:null, confirmDeleteHouseYear:null,
+    selectedYear: new Date().getFullYear(),
     consulta:{ rut:'', status:'idle', houseId:null, message:'' }
   };
 
@@ -455,7 +470,7 @@
   function startFirebasePolling(){
     if(firebasePollTimer){ clearInterval(firebasePollTimer); }
     firebasePollTimer = setInterval(function(){
-      var editing = ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.importPending;
+      var editing = ui.addOpen || ui.editingHouse || ui.changePwOpen || ui.confirmDeleteHouse || ui.confirmDeletePayment || ui.importPending || ui.confirmDeleteHouseYear || ui.confirmDeleteGasto;
       if(editing) return;
       fetchFirebaseState().then(function(remote){
         firebaseOk = true;
@@ -595,13 +610,18 @@
     var s = new Intl.DateTimeFormat('es-CL', {month:'short'}).format(d).replace('.','');
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-  function monthsStatusStrip(h){
+  function monthsStatusStrip(h, year, withSwitcher){
+    year = year || currentYearNumber();
     var covered = {};
     monthsCovered(h).forEach(function(m){ covered[m] = true; });
-    var year = new Date().getFullYear();
     var months = monthsOfYear(year);
+    var headerHtml = withSwitcher
+      ? ('<div style="display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;margin-top:1rem;">'+
+          '<div class="hint" style="margin:0;">Cuotas '+year+'</div>'+yearSwitcherHtml()+
+        '</div>')
+      : ('<div class="hint" style="margin-top:1rem;">Cuotas '+year+'</div>');
     return (
-      '<div class="hint" style="margin-top:1rem;">Cuotas '+year+'</div>'+
+      headerHtml+
       '<div class="months-strip">' + months.map(function(m){
         var paid = !!covered[m];
         return (
@@ -613,8 +633,8 @@
       }).join('') + '</div>'
     );
   }
-  function monthPickerHtml(name, selectedList){
-    var year = new Date().getFullYear();
+  function monthPickerHtml(name, selectedList, year){
+    year = year || currentYearNumber();
     var months = monthsOfYear(year);
     return '<div class="month-picker">' + months.map(function(m){
       var checked = selectedList.indexOf(m)>=0;
@@ -625,6 +645,61 @@
         '</label>'
       );
     }).join('') + '</div>';
+  }
+
+  /* ---------- años, cuotas por año y gastos ---------- */
+  function currentMonthNumber(){ return new Date().getMonth()+1; }
+  function currentYearNumber(){ return new Date().getFullYear(); }
+  function monthsElapsedInYear(year){
+    var current = currentYearNumber();
+    if(year < current) return 12;
+    if(year > current) return 0;
+    return currentMonthNumber();
+  }
+  function houseExpectedToDate(h, year){
+    year = year || currentYearNumber();
+    return (Number(h.cuota)||0) * monthsElapsedInYear(year);
+  }
+  function housePaidInYear(h, year){
+    year = year || currentYearNumber();
+    var y = String(year);
+    return (h.payments||[]).filter(function(p){ return (p.periodo||'').indexOf(y+'-')===0; })
+      .reduce(function(s,p){ return s + (Number(p.monto)||0); }, 0);
+  }
+  function houseMonthsPaidInYear(h, year){
+    year = year || currentYearNumber();
+    var y = String(year);
+    var set = {};
+    (h.payments||[]).forEach(function(p){ if((p.periodo||'').indexOf(y+'-')===0) set[p.periodo]=true; });
+    return Object.keys(set).length;
+  }
+  function gastoYear(g){ return (g.fecha||'').slice(0,4); }
+  function totalGastosList(list){
+    return (list||[]).reduce(function(s,g){ return s + (Number(g.monto)||0); }, 0);
+  }
+  function availableYears(){
+    var set = {};
+    var current = currentYearNumber();
+    for(var y=current-5; y<=current; y++){ set[y] = true; }
+    (STATE.houses||[]).forEach(function(h){
+      (h.payments||[]).forEach(function(p){
+        var y = parseInt((p.periodo||'').slice(0,4), 10);
+        if(y) set[y] = true;
+      });
+    });
+    (STATE.gastos||[]).forEach(function(g){
+      var y = parseInt(gastoYear(g), 10);
+      if(y) set[y] = true;
+    });
+    return Object.keys(set).map(Number).sort(function(a,b){ return b-a; });
+  }
+  function yearSwitcherHtml(){
+    var years = availableYears();
+    var current = ui.selectedYear;
+    if(years.indexOf(current)===-1){ years.push(current); years.sort(function(a,b){ return b-a; }); }
+    return '<select data-action="select-year" aria-label="Año" style="width:auto;display:inline-block;">'+
+      years.map(function(y){ return '<option value="'+y+'"'+(y===current?' selected':'')+'>'+y+'</option>'; }).join('')+
+    '</select>';
   }
 
   /* ---------- RUT (Chilean national ID) ---------- */
@@ -684,7 +759,8 @@
     download:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3v9"/><path d="M6.5 8.5L10 12l3.5-3.5"/><path d="M4 14.5v1a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>',
     upload:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12V3"/><path d="M6.5 6.5L10 3l3.5 3.5"/><path d="M4 14.5v1a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>',
     report:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3h9v14h-9z"/><path d="M8 7h4"/><path d="M8 10h4"/><path d="M8 13h2.5"/></svg>',
-    printer:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7V3.5h8V7"/><rect x="4" y="7" width="12" height="6.5" rx="1"/><path d="M6 12.5h8V16.5H6z"/></svg>'
+    printer:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7V3.5h8V7"/><rect x="4" y="7" width="12" height="6.5" rx="1"/><path d="M6 12.5h8V16.5H6z"/></svg>',
+    gastos:'<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h14v9H3z"/><path d="M3 7l2-3h10l2 3"/><circle cx="10" cy="11.5" r="1.6"/></svg>'
   };
   function statusPill(status){
     if(status==='al-dia') return '<span class="pill pill-ok">'+ICON.check+' Al día</span>';
@@ -723,11 +799,38 @@
         '<div class="stat"><div class="label">Casas al día</div><div class="value tabular">'+alDia+' / '+houses.length+'</div><div class="sub">'+(houses.length-alDia)+' pendiente'+((houses.length-alDia)===1?'':'s')+'</div></div>'+
       '</div>';
 
+    var sorted = houses.slice().sort(function(a,b){ return (a.numero||'').localeCompare(b.numero||'', 'es', {numeric:true}); });
+
+    var selYear = ui.selectedYear;
+    var mesesTranscurridosSel = monthsElapsedInYear(selYear);
+    var cuotasAnioRows = sorted.map(function(h){
+      var pagadoAnio = housePaidInYear(h, selYear);
+      var mesesPagadosAnio = houseMonthsPaidInYear(h, selYear);
+      var estadoAnio = (mesesTranscurridosSel<=0 || mesesPagadosAnio<=0) ? 'sin-pagos' : (mesesPagadosAnio>=mesesTranscurridosSel ? 'al-dia' : 'pendiente');
+      return (
+        '<tr>'+
+          '<td>'+escapeHtml(h.numero)+'</td>'+
+          '<td>'+escapeHtml(h.responsable||'—')+'</td>'+
+          '<td class="tabular">'+fmtMoney(h.cuota)+'</td>'+
+          '<td class="tabular">'+mesesPagadosAnio+' / '+mesesTranscurridosSel+'</td>'+
+          '<td class="tabular">'+fmtMoney(pagadoAnio)+'</td>'+
+          '<td>'+statusPill(estadoAnio)+'</td>'+
+        '</tr>'
+      );
+    }).join('');
+    var cuotasAnioHtml =
+      '<div class="section-head"><h2>Cuotas por año</h2>'+yearSwitcherHtml()+'</div>'+
+      '<div class="card" style="overflow-x:auto;margin-bottom:1.75rem;">'+
+        '<table class="report-table" style="min-width:520px;">'+
+          '<thead><tr><th>Casa</th><th>Responsable</th><th>Cuota</th><th>Meses pagados</th><th>Pagado '+selYear+'</th><th>Estado</th></tr></thead>'+
+          '<tbody>'+(cuotasAnioRows || '<tr><td colspan="6">No hay casas registradas.</td></tr>')+'</tbody>'+
+        '</table>'+
+      '</div>';
+
     var gridHtml;
     if(houses.length===0){
       gridHtml = '<div class="empty"><p><strong>Aún no hay casas registradas.</strong></p><p>Agrega la primera casa con el formulario de abajo para empezar a llevar el registro de cuotas.</p></div>';
     } else {
-      var sorted = houses.slice().sort(function(a,b){ return (a.numero||'').localeCompare(b.numero||'', 'es', {numeric:true}); });
       gridHtml = '<div class="house-grid">' + sorted.map(function(h){
         var status = houseStatus(h);
         var mc = monthsCovered(h);
@@ -897,6 +1000,7 @@
         '<div class="brand"><h1>Cuotas del Barrio</h1><p>Panel de cuotas vecinales</p></div>'+
         '<div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">'+
           savePillHtml()+
+          '<a href="#/gastos" class="btn btn-ghost btn-sm">'+ICON.gastos+' Gastos</a>'+
           '<a href="#/reporte" class="btn btn-ghost btn-sm">'+ICON.report+' Generar reporte</a>'+
           (readOnly ? '' : '<button type="button" class="btn btn-ghost btn-sm" data-action="toggle-change-pw">Cambiar contraseña</button>')+
           '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
@@ -908,6 +1012,7 @@
       cuotaDefaultHtml+
       portalBanner+
       statsHtml+
+      cuotasAnioHtml+
       '<div class="section-head"><h2>Casas<span class="count-badge">'+houses.length+'</span></h2>'+
         (readOnly ? '' : '<button type="button" class="btn btn-primary btn-sm" data-action="toggle-add-form">'+ICON.plus+' Agregar casa</button>')+
       '</div>'+
@@ -965,14 +1070,14 @@
 
     var payErr = (ui.formError && ui.formError.form==='add-payment') ? ui.formError : null;
     var payVals = (payErr && payErr.values) ? payErr.values : {};
-    var payPeriodos = payErr ? (payErr.periodos||[]) : [currentMonthKey()];
+    var payPeriodos = payErr ? (payErr.periodos||[]) : (ui.selectedYear===currentYearNumber() ? [currentMonthKey()] : []);
     var payFormHtml = readOnly ? '' :
       '<div class="card card-pad" style="margin-top:1.1rem;">'+
         '<h2 style="font-size:1rem;margin-bottom:.4rem;">Registrar pago</h2>'+
         '<form data-action="add-payment" data-house="'+h.id+'">'+
           '<div class="field" style="margin-bottom:1rem;">'+
-            '<label>Mes(es) que cubre *</label>'+
-            monthPickerHtml('periodos', payPeriodos)+
+            '<label>Mes(es) que cubre * <span class="hint" style="font-weight:400;">(año '+ui.selectedYear+')</span></label>'+
+            monthPickerHtml('periodos', payPeriodos, ui.selectedYear)+
           '</div>'+
           '<div class="field-grid">'+
             '<div class="field"><label for="p-fecha">Fecha de pago</label><input id="p-fecha" name="fecha" type="date" value="'+escapeHtml(payVals.fecha||todayISO())+'" required></div>'+
@@ -1012,14 +1117,31 @@
         '</div>';
     }
 
+    var detailYear = ui.selectedYear;
+    var mesesPagadosDetailYear = houseMonthsPaidInYear(h, detailYear);
+    var yearDeleteRow;
+    if(ui.confirmDeleteHouseYear && ui.confirmDeleteHouseYear.houseId===h.id && ui.confirmDeleteHouseYear.year===detailYear){
+      yearDeleteRow =
+        '<span class="hint">¿Eliminar todos los pagos de '+detailYear+' de "'+escapeHtml(h.numero)+'"? Los demás años no se ven afectados.</span>'+
+        '<button type="button" class="btn btn-danger btn-sm" data-action="delete-house-year" data-house="'+h.id+'" data-year="'+detailYear+'">Sí, eliminar</button>'+
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-delete-house-year">Cancelar</button>';
+    } else if(mesesPagadosDetailYear>0){
+      yearDeleteRow = '<button type="button" class="btn btn-danger btn-sm" data-action="arm-delete-house-year" data-house="'+h.id+'" data-year="'+detailYear+'">'+ICON.trash+' Eliminar datos de '+detailYear+'</button>';
+    } else {
+      yearDeleteRow = '<span class="hint">No hay pagos registrados en '+detailYear+' para eliminar.</span>';
+    }
+
     var dangerHtml = readOnly ? '' :
       '<div class="card card-pad" style="margin-top:1.5rem;">'+
+        '<div class="confirm-row">'+ yearDeleteRow +'</div>'+
+        '<div class="hint" style="margin-top:.5rem;">Cada casa es independiente por año: esto solo borra los pagos de '+detailYear+', el resto de los años se mantiene.</div>'+
+        '<div style="border-top:1px solid var(--border);margin:1rem 0;"></div>'+
         '<div class="confirm-row">'+
           (ui.confirmDeleteHouse===h.id
-            ? ('<span class="hint">¿Eliminar "'+escapeHtml(h.numero)+'" y todo su historial de pagos?</span>'+
-               '<button type="button" class="btn btn-danger btn-sm" data-action="delete-house" data-house="'+h.id+'">Sí, eliminar</button>'+
+            ? ('<span class="hint">¿Eliminar "'+escapeHtml(h.numero)+'" por completo, junto con TODO su historial de pagos en todos los años? Esta acción no se puede deshacer.</span>'+
+               '<button type="button" class="btn btn-danger btn-sm" data-action="delete-house" data-house="'+h.id+'">Sí, eliminar todo</button>'+
                '<button type="button" class="btn btn-ghost btn-sm" data-action="cancel-delete-house">Cancelar</button>')
-            : '<button type="button" class="btn btn-danger btn-sm" data-action="arm-delete-house" data-house="'+h.id+'">'+ICON.trash+' Eliminar casa</button>')+
+            : '<button type="button" class="btn btn-danger btn-sm" data-action="arm-delete-house" data-house="'+h.id+'">'+ICON.trash+' Eliminar casa completa (todos los años)</button>')+
         '</div>'+
       '</div>';
 
@@ -1029,7 +1151,7 @@
         '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
       '</div>'+
       '<div class="detail-head"><h1>'+escapeHtml(h.numero)+'</h1>'+statusPill(status)+'</div>'+
-      '<div class="card card-pad">'+infoHtml+monthsStatusStrip(h)+'</div>'+
+      '<div class="card card-pad">'+infoHtml+monthsStatusStrip(h, ui.selectedYear, true)+'</div>'+
       payFormHtml+
       historyHtml+
       dangerHtml
@@ -1037,79 +1159,237 @@
   }
 
   /* ---------- reporte imprimible ---------- */
-  function currentMonthNumber(){ return new Date().getMonth()+1; }
-  function currentYearNumber(){ return new Date().getFullYear(); }
-  function houseExpectedToDate(h){
-    return (Number(h.cuota)||0) * currentMonthNumber();
-  }
-  function housePaidThisYear(h){
-    var year = String(currentYearNumber());
-    return (h.payments||[]).filter(function(p){ return (p.periodo||'').indexOf(year+'-')===0; })
-      .reduce(function(s,p){ return s + (Number(p.monto)||0); }, 0);
-  }
-
-  function renderReporte(){
+  function renderReporte(yearParam){
+    var isYearMode = yearParam != null;
     var houses = STATE.houses.slice().sort(function(a,b){ return (a.numero||'').localeCompare(b.numero||'', 'es', {numeric:true}); });
-    var year = currentYearNumber();
-    var mesActual = currentMonthNumber();
-    var mesActualLabel = monthLabel(year+'-'+pad(mesActual));
+    var gastos = (STATE.gastos||[]).slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); });
+    var years = availableYears();
 
-    var totalHistorico = houses.reduce(function(s,h){ return s + houseTotal(h); }, 0);
-    var totalEsperado = houses.reduce(function(s,h){ return s + houseExpectedToDate(h); }, 0);
-    var totalPagadoEsteAnio = houses.reduce(function(s,h){ return s + housePaidThisYear(h); }, 0);
-    var diferencia = totalPagadoEsteAnio - totalEsperado;
+    var switcherHtml =
+      '<div class="no-print" style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem;">'+
+        '<a href="#/reporte" class="btn btn-sm '+(!isYearMode?'btn-primary':'btn-ghost')+'">Completo</a>'+
+        years.map(function(y){
+          return '<a href="#/reporte/'+y+'" class="btn btn-sm '+(isYearMode&&yearParam===y?'btn-primary':'btn-ghost')+'">'+y+'</a>';
+        }).join('')+
+      '</div>';
 
-    var alDia = houses.filter(function(h){ return houseStatus(h)==='al-dia'; });
-    var pendientes = houses.filter(function(h){ return houseStatus(h)==='pendiente'; });
-    var sinPagos = houses.filter(function(h){ return houseStatus(h)==='sin-pagos'; });
+    var bodyHtml;
+    if(isYearMode){
+      var year = yearParam;
+      var mesesTranscurridos = monthsElapsedInYear(year);
+      var totalPagadoAnio = houses.reduce(function(s,h){ return s+housePaidInYear(h,year); }, 0);
+      var totalEsperadoAnio = houses.reduce(function(s,h){ return s+houseExpectedToDate(h,year); }, 0);
+      var diferenciaAnio = totalPagadoAnio - totalEsperadoAnio;
+      var gastosAnio = gastos.filter(function(g){ return gastoYear(g)===String(year); });
+      var totalGastosAnio = totalGastosList(gastosAnio);
+      var balanceAnio = totalPagadoAnio - totalGastosAnio;
 
-    var filasHtml = houses.map(function(h){
-      var esperado = houseExpectedToDate(h);
-      var pagadoAnio = housePaidThisYear(h);
-      var dif = pagadoAnio - esperado;
-      var status = houseStatus(h);
-      var statusLabel = status==='al-dia' ? 'Al día' : (status==='pendiente' ? 'Pendiente' : 'Sin pagos');
-      return (
-        '<tr>'+
-          '<td>'+escapeHtml(h.numero)+'</td>'+
-          '<td>'+escapeHtml(h.responsable||'—')+'</td>'+
-          '<td class="tabular">'+escapeHtml(formatRutDisplay(h.rut)||'—')+'</td>'+
-          '<td class="tabular">'+fmtMoney(h.cuota)+'</td>'+
-          '<td class="tabular">'+fmtMoney(pagadoAnio)+'</td>'+
-          '<td class="tabular">'+fmtMoney(esperado)+'</td>'+
-          '<td class="tabular'+(dif<0?' report-neg':'')+'">'+fmtMoney(dif)+'</td>'+
-          '<td>'+statusLabel+'</td>'+
-        '</tr>'
-      );
-    }).join('');
+      var alDiaN=0, pendN=0, sinN=0;
+      houses.forEach(function(h){
+        var mp = houseMonthsPaidInYear(h, year);
+        if(mesesTranscurridos<=0 || mp<=0){ sinN++; }
+        else if(mp>=mesesTranscurridos){ alDiaN++; }
+        else { pendN++; }
+      });
 
-    return (
-      '<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.2rem;">'+
-        '<a href="#/" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Volver al panel</a>'+
-        '<button type="button" class="btn btn-primary btn-sm" data-action="print-report">'+ICON.printer+' Imprimir / Guardar como PDF</button>'+
-      '</div>'+
-      '<div class="report-page">'+
+      var filasHtml = houses.map(function(h){
+        var pagadoAnio = housePaidInYear(h, year);
+        var esperadoAnio = houseExpectedToDate(h, year);
+        var dif = pagadoAnio - esperadoAnio;
+        var mp = houseMonthsPaidInYear(h, year);
+        var statusLabel = (mesesTranscurridos<=0||mp<=0) ? 'Sin pagos' : (mp>=mesesTranscurridos ? 'Al día' : 'Pendiente');
+        return (
+          '<tr>'+
+            '<td>'+escapeHtml(h.numero)+'</td>'+
+            '<td>'+escapeHtml(h.responsable||'—')+'</td>'+
+            '<td class="tabular">'+escapeHtml(formatRutDisplay(h.rut)||'—')+'</td>'+
+            '<td class="tabular">'+fmtMoney(h.cuota)+'</td>'+
+            '<td class="tabular">'+fmtMoney(pagadoAnio)+'</td>'+
+            '<td class="tabular">'+fmtMoney(esperadoAnio)+'</td>'+
+            '<td class="tabular'+(dif<0?' report-neg':'')+'">'+fmtMoney(dif)+'</td>'+
+            '<td>'+statusLabel+'</td>'+
+          '</tr>'
+        );
+      }).join('');
+
+      var gastosFilasAnio = gastosAnio.map(function(g){
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+      }).join('');
+
+      var mesesLabelAnio = mesesTranscurridos<=0 ? 'aún no comienza' : ('enero a '+escapeHtml(monthLabel(year+'-'+pad(Math.min(mesesTranscurridos,12)))));
+
+      bodyHtml =
         '<header class="report-head">'+
           '<h1>Cuotas del Barrio</h1>'+
-          '<p>Reporte de cuotas vecinales — generado el '+escapeHtml(dateLabel(todayISO()))+'</p>'+
+          '<p>Reporte de cuotas vecinales '+year+' — generado el '+escapeHtml(dateLabel(todayISO()))+'</p>'+
         '</header>'+
         '<div class="report-summary">'+
-          '<div><span class="k">Recaudado histórico</span><span class="v tabular">'+fmtMoney(totalHistorico)+'</span></div>'+
-          '<div><span class="k">Recaudado en '+year+' (a '+escapeHtml(mesActualLabel)+')</span><span class="v tabular">'+fmtMoney(totalPagadoEsteAnio)+'</span></div>'+
-          '<div><span class="k">Debería estar pagado a la fecha</span><span class="v tabular">'+fmtMoney(totalEsperado)+'</span></div>'+
-          '<div><span class="k">Diferencia</span><span class="v tabular'+(diferencia<0?' report-neg':'')+'">'+fmtMoney(diferencia)+'</span></div>'+
-          '<div><span class="k">Casas al día</span><span class="v tabular">'+alDia.length+' / '+houses.length+'</span></div>'+
-          '<div><span class="k">Casas pendientes</span><span class="v tabular">'+pendientes.length+'</span></div>'+
-          '<div><span class="k">Casas sin pagos</span><span class="v tabular">'+sinPagos.length+'</span></div>'+
+          '<div><span class="k">Recaudado '+year+'</span><span class="v tabular">'+fmtMoney(totalPagadoAnio)+'</span></div>'+
+          '<div><span class="k">Debería estar pagado a la fecha</span><span class="v tabular">'+fmtMoney(totalEsperadoAnio)+'</span></div>'+
+          '<div><span class="k">Diferencia</span><span class="v tabular'+(diferenciaAnio<0?' report-neg':'')+'">'+fmtMoney(diferenciaAnio)+'</span></div>'+
+          '<div><span class="k">Gastos '+year+'</span><span class="v tabular">'+fmtMoney(totalGastosAnio)+'</span></div>'+
+          '<div><span class="k">Balance '+year+'</span><span class="v tabular'+(balanceAnio<0?' report-neg':'')+'">'+fmtMoney(balanceAnio)+'</span></div>'+
+          '<div><span class="k">Casas al día</span><span class="v tabular">'+alDiaN+' / '+houses.length+'</span></div>'+
+          '<div><span class="k">Casas pendientes</span><span class="v tabular">'+pendN+'</span></div>'+
+          '<div><span class="k">Casas sin pagos</span><span class="v tabular">'+sinN+'</span></div>'+
         '</div>'+
-        '<div class="hint" style="margin:.3rem 0 1rem;">"Debería estar pagado a la fecha" se calcula como la cuota mensual de cada casa multiplicada por los meses transcurridos de '+year+' (enero a '+escapeHtml(mesActualLabel)+').</div>'+
+        '<div class="hint" style="margin:.3rem 0 1rem;">"Debería estar pagado a la fecha" se calcula como la cuota mensual de cada casa multiplicada por los meses transcurridos de '+year+' ('+mesesLabelAnio+').</div>'+
         '<div style="overflow-x:auto;">'+
         '<table class="report-table">'+
           '<thead><tr><th>Casa</th><th>Responsable</th><th>RUT</th><th>Cuota</th><th>Pagado '+year+'</th><th>Esperado a la fecha</th><th>Diferencia</th><th>Estado</th></tr></thead>'+
           '<tbody>'+(filasHtml || '<tr><td colspan="8">No hay casas registradas.</td></tr>')+'</tbody>'+
         '</table>'+
         '</div>'+
-      '</div>'
+        '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Gastos de la asociación — '+year+'</h2>'+
+        '<div style="overflow-x:auto;">'+
+        '<table class="report-table">'+
+          '<thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th></tr></thead>'+
+          '<tbody>'+(gastosFilasAnio || '<tr><td colspan="3">No hay gastos registrados en '+year+'.</td></tr>')+'</tbody>'+
+        '</table>'+
+        '</div>';
+    } else {
+      var totalHistorico = houses.reduce(function(s,h){ return s + houseTotal(h); }, 0);
+      var totalGastosHist = totalGastosList(gastos);
+      var balanceHist = totalHistorico - totalGastosHist;
+      var yearActual = currentYearNumber();
+      var mesActual = currentMonthNumber();
+      var mesActualLabel = monthLabel(yearActual+'-'+pad(mesActual));
+      var totalPagadoEsteAnio = houses.reduce(function(s,h){ return s + housePaidInYear(h, yearActual); }, 0);
+      var totalEsperado = houses.reduce(function(s,h){ return s + houseExpectedToDate(h, yearActual); }, 0);
+      var diferencia = totalPagadoEsteAnio - totalEsperado;
+
+      var alDia = houses.filter(function(h){ return houseStatus(h)==='al-dia'; });
+      var pendientes = houses.filter(function(h){ return houseStatus(h)==='pendiente'; });
+      var sinPagos = houses.filter(function(h){ return houseStatus(h)==='sin-pagos'; });
+
+      var filasHtml = houses.map(function(h){
+        var status = houseStatus(h);
+        var statusLabel = status==='al-dia' ? 'Al día' : (status==='pendiente' ? 'Pendiente' : 'Sin pagos');
+        return (
+          '<tr>'+
+            '<td>'+escapeHtml(h.numero)+'</td>'+
+            '<td>'+escapeHtml(h.responsable||'—')+'</td>'+
+            '<td class="tabular">'+escapeHtml(formatRutDisplay(h.rut)||'—')+'</td>'+
+            '<td class="tabular">'+fmtMoney(h.cuota)+'</td>'+
+            '<td class="tabular">'+fmtMoney(houseTotal(h))+'</td>'+
+            '<td>'+statusLabel+'</td>'+
+          '</tr>'
+        );
+      }).join('');
+
+      var gastosFilasHist = gastos.map(function(g){
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+escapeHtml(gastoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+      }).join('');
+
+      bodyHtml =
+        '<header class="report-head">'+
+          '<h1>Cuotas del Barrio</h1>'+
+          '<p>Reporte completo (histórico) — generado el '+escapeHtml(dateLabel(todayISO()))+'</p>'+
+        '</header>'+
+        '<div class="report-summary">'+
+          '<div><span class="k">Recaudado histórico</span><span class="v tabular">'+fmtMoney(totalHistorico)+'</span></div>'+
+          '<div><span class="k">Gastos histórico</span><span class="v tabular">'+fmtMoney(totalGastosHist)+'</span></div>'+
+          '<div><span class="k">Balance histórico</span><span class="v tabular'+(balanceHist<0?' report-neg':'')+'">'+fmtMoney(balanceHist)+'</span></div>'+
+          '<div><span class="k">Recaudado en '+yearActual+' (a '+escapeHtml(mesActualLabel)+')</span><span class="v tabular">'+fmtMoney(totalPagadoEsteAnio)+'</span></div>'+
+          '<div><span class="k">Debería estar pagado a la fecha</span><span class="v tabular">'+fmtMoney(totalEsperado)+'</span></div>'+
+          '<div><span class="k">Diferencia</span><span class="v tabular'+(diferencia<0?' report-neg':'')+'">'+fmtMoney(diferencia)+'</span></div>'+
+          '<div><span class="k">Casas al día</span><span class="v tabular">'+alDia.length+' / '+houses.length+'</span></div>'+
+          '<div><span class="k">Casas pendientes</span><span class="v tabular">'+pendientes.length+'</span></div>'+
+          '<div><span class="k">Casas sin pagos</span><span class="v tabular">'+sinPagos.length+'</span></div>'+
+        '</div>'+
+        '<div class="hint" style="margin:.3rem 0 1rem;">Este reporte muestra el total histórico acumulado (todos los años). Usa los botones de arriba para ver el detalle de un año específico.</div>'+
+        '<div style="overflow-x:auto;">'+
+        '<table class="report-table">'+
+          '<thead><tr><th>Casa</th><th>Responsable</th><th>RUT</th><th>Cuota</th><th>Pagado histórico</th><th>Estado actual</th></tr></thead>'+
+          '<tbody>'+(filasHtml || '<tr><td colspan="6">No hay casas registradas.</td></tr>')+'</tbody>'+
+        '</table>'+
+        '</div>'+
+        '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Gastos de la asociación — histórico</h2>'+
+        '<div style="overflow-x:auto;">'+
+        '<table class="report-table">'+
+          '<thead><tr><th>Fecha</th><th>Concepto</th><th>Año</th><th>Monto</th></tr></thead>'+
+          '<tbody>'+(gastosFilasHist || '<tr><td colspan="4">No hay gastos registrados.</td></tr>')+'</tbody>'+
+        '</table>'+
+        '</div>';
+    }
+
+    return (
+      '<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.2rem;">'+
+        '<a href="#/" class="back-link" style="margin-bottom:0;">'+ICON.arrowLeft+' Volver al panel</a>'+
+        '<button type="button" class="btn btn-primary btn-sm" data-action="print-report">'+ICON.printer+' Imprimir / Guardar como PDF</button>'+
+      '</div>'+
+      switcherHtml+
+      '<div class="report-page">'+bodyHtml+'</div>'
+    );
+  }
+
+  /* ---------- gastos de la asociación ---------- */
+  function renderGastos(){
+    var gastos = (STATE.gastos||[]).slice().sort(function(a,b){ return (b.fecha||'').localeCompare(a.fecha||''); });
+    var totalGeneral = totalGastosList(gastos);
+    var selYear = ui.selectedYear;
+    var gastosAnio = gastos.filter(function(g){ return gastoYear(g)===String(selYear); });
+    var totalAnio = totalGastosList(gastosAnio);
+
+    var addErr = (ui.formError && ui.formError.form==='add-gasto') ? ui.formError : null;
+    var addVals = (addErr && addErr.values) ? addErr.values : {};
+
+    var formHtml = readOnly ? '' :
+      '<div class="card card-pad" style="margin-bottom:1.5rem;">'+
+        '<h2 style="font-size:1rem;margin-bottom:.6rem;">Agregar gasto</h2>'+
+        '<form data-action="add-gasto">'+
+          '<div class="field-grid">'+
+            '<div class="field"><label for="g-fecha">Fecha *</label><input id="g-fecha" name="fecha" type="date" required value="'+escapeHtml(addVals.fecha||todayISO())+'"></div>'+
+            '<div class="field"><label for="g-concepto">Concepto *</label><input id="g-concepto" name="concepto" required placeholder="Ej: mantención áreas verdes" value="'+escapeHtml(addVals.concepto||'')+'"></div>'+
+            '<div class="field"><label for="g-monto">Monto *</label><input id="g-monto" name="monto" type="number" min="0" step="1" required inputmode="numeric" placeholder="15000" value="'+escapeHtml(addVals.monto||'')+'"></div>'+
+          '</div>'+
+          (addErr ? '<div class="field-error">'+escapeHtml(addErr.message)+'</div>' : '')+
+          '<div class="form-actions"><button type="submit" class="btn btn-primary">'+ICON.plus+' Agregar gasto</button></div>'+
+        '</form>'+
+      '</div>';
+
+    var summaryHtml =
+      '<div class="stats" style="margin-bottom:1.5rem;">'+
+        '<div class="stat accent"><div class="label">Gastos histórico</div><div class="value tabular">'+fmtMoney(totalGeneral)+'</div><div class="sub">'+gastos.length+' registro'+(gastos.length===1?'':'s')+'</div></div>'+
+        '<div class="stat"><div class="label">Gastos '+selYear+'</div><div class="value tabular">'+fmtMoney(totalAnio)+'</div><div class="sub" style="display:flex;align-items:center;gap:.4rem;">'+gastosAnio.length+' registro'+(gastosAnio.length===1?'':'s')+' · '+yearSwitcherHtml()+'</div></div>'+
+      '</div>';
+
+    var tableHtml;
+    if(gastos.length===0){
+      tableHtml = '<div class="empty"><p>Todavía no hay gastos registrados.</p></div>';
+    } else {
+      tableHtml =
+        '<div class="gasto-table">'+
+          '<div class="gasto-row head"><span>Fecha</span><span>Concepto</span><span>Monto</span><span></span></div>'+
+          gastos.map(function(g){
+            var confirmingDel = ui.confirmDeleteGasto===g.id;
+            return (
+              '<div class="gasto-row">'+
+                '<span data-label="Fecha" class="tabular">'+dateLabel(g.fecha)+'</span>'+
+                '<span data-label="Concepto">'+escapeHtml(g.concepto||'—')+'</span>'+
+                '<span data-label="Monto" class="tabular">'+fmtMoney(g.monto)+'</span>'+
+                (readOnly ? '<span></span>' :
+                  '<span class="pay-del">'+
+                    (confirmingDel
+                      ? '<button type="button" class="btn btn-danger btn-sm" data-action="delete-gasto" data-gasto="'+g.id+'" title="Confirmar eliminar">Sí</button>'
+                      : '<button type="button" class="btn btn-ghost btn-icon" data-action="arm-delete-gasto" data-gasto="'+g.id+'" title="Eliminar gasto">'+ICON.trash+'</button>')+
+                  '</span>')+
+              '</div>'
+            );
+          }).join('')+
+        '</div>';
+    }
+
+    return (
+      '<div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">'+
+        '<a href="#/" class="back-link" style="margin-bottom:1rem;">'+ICON.arrowLeft+' Volver al panel</a>'+
+        '<button type="button" class="btn btn-ghost btn-sm" data-action="logout">Cerrar sesión</button>'+
+      '</div>'+
+      '<header class="topbar"><div class="brand"><h1>Gastos de la asociación</h1><p>Registro de gastos con fecha y año asociado</p></div></header>'+
+      formHtml+
+      summaryHtml+
+      '<div class="section-head"><h2>Historial de gastos<span class="count-badge">'+gastos.length+'</span></h2></div>'+
+      tableHtml
     );
   }
 
@@ -1214,7 +1494,9 @@
     if(hash==='consulta'){ root.innerHTML = renderConsulta(); return; }
     if(!STATE.meta || !STATE.meta.adminPasswordHash){ root.innerHTML = renderAuthScreen('setup'); return; }
     if(!auth.unlocked){ root.innerHTML = renderAuthScreen('login'); return; }
-    if(hash==='reporte'){ root.innerHTML = renderReporte(); return; }
+    var repMatch = hash.match(/^reporte(?:\/(\d{4}))?$/);
+    if(repMatch){ root.innerHTML = renderReporte(repMatch[1] ? Number(repMatch[1]) : null); return; }
+    if(hash==='gastos'){ root.innerHTML = renderGastos(); return; }
     var m = hash.match(/^casa\/(.+)$/);
     root.innerHTML = m ? renderHouseDetail(decodeURIComponent(m[1])) : renderHome();
   }
@@ -1249,6 +1531,12 @@
     STATE.houses = STATE.houses.filter(function(h){ return h.id!==id; });
     touch();
   }
+  function deletePaymentsForYear(houseId, year){
+    var h = getHouse(houseId); if(!h) return;
+    var y = String(year);
+    h.payments = (h.payments||[]).filter(function(p){ return (p.periodo||'').indexOf(y+'-')!==0; });
+    touch();
+  }
   function addPayment(houseId, data, periodos){
     var h = getHouse(houseId); if(!h) return;
     h.payments = h.payments || [];
@@ -1270,6 +1558,15 @@
   function deletePayment(houseId, paymentId){
     var h = getHouse(houseId); if(!h) return;
     h.payments = (h.payments||[]).filter(function(p){ return p.id!==paymentId; });
+    touch();
+  }
+  function addGasto(data){
+    STATE.gastos = STATE.gastos || [];
+    STATE.gastos.push({ id: uid(), fecha: data.fecha, concepto: (data.concepto||'').trim(), monto: Number(data.monto)||0 });
+    touch();
+  }
+  function deleteGastoById(id){
+    STATE.gastos = (STATE.gastos||[]).filter(function(g){ return g.id!==id; });
     touch();
   }
 
@@ -1487,6 +1784,13 @@
       STATE.meta.cuotaDefault = Number(data.cuotaDefault)||0;
       touch();
       persist();
+    } else if(action==='add-gasto'){
+      if(!data.fecha){ ui.formError = { form:'add-gasto', message:'Ingresa la fecha del gasto.', values:data }; render(); return; }
+      if(!data.concepto || !data.concepto.trim()){ ui.formError = { form:'add-gasto', message:'Ingresa un concepto para el gasto.', values:data }; render(); return; }
+      if(data.monto==='' || isNaN(Number(data.monto)) || Number(data.monto)<0){ ui.formError = { form:'add-gasto', message:'Ingresa un monto válido.', values:data }; render(); return; }
+      ui.formError = null;
+      addGasto(data);
+      persist();
     }
   });
 
@@ -1522,6 +1826,20 @@
       deleteHouseById(hid);
       ui.confirmDeleteHouse = null;
       location.hash = '#/';
+      persist();
+      return;
+    }
+    if(action==='arm-delete-house-year'){
+      ui.confirmDeleteHouseYear = { houseId: el.getAttribute('data-house'), year: Number(el.getAttribute('data-year')) };
+      render();
+      return;
+    }
+    if(action==='cancel-delete-house-year'){ ui.confirmDeleteHouseYear = null; render(); return; }
+    if(action==='delete-house-year'){
+      var hidY = el.getAttribute('data-house');
+      var yr = Number(el.getAttribute('data-year'));
+      deletePaymentsForYear(hidY, yr);
+      ui.confirmDeleteHouseYear = null;
       persist();
       return;
     }
@@ -1566,20 +1884,36 @@
       window.print();
       return;
     }
+    if(action==='arm-delete-gasto'){ ui.confirmDeleteGasto = el.getAttribute('data-gasto'); render(); return; }
+    if(action==='delete-gasto'){
+      deleteGastoById(el.getAttribute('data-gasto'));
+      ui.confirmDeleteGasto = null;
+      persist();
+      return;
+    }
   });
 
   document.addEventListener('change', function(e){
-    if(!e.target || !e.target.matches || !e.target.matches('#import-file-input')) return;
-    var file = e.target.files && e.target.files[0];
-    e.target.value = '';
-    if(!file) return;
-    handleImportFile(file);
+    var t = e.target;
+    if(!t || !t.matches) return;
+    if(t.matches('#import-file-input')){
+      var file = t.files && t.files[0];
+      t.value = '';
+      if(!file) return;
+      handleImportFile(file);
+      return;
+    }
+    if(t.matches('[data-action="select-year"]')){
+      var y = parseInt(t.value, 10);
+      if(y){ ui.selectedYear = y; render(); }
+      return;
+    }
   });
 
   window.addEventListener('hashchange', function(){
     ui.editingHouse = null; ui.confirmDeleteHouse = null; ui.confirmDeletePayment = null; ui.formError = null;
     ui.authError = null; ui.changePwOpen = false; ui.changePwError = null;
-    ui.importPending = null; ui.importError = null;
+    ui.importPending = null; ui.importError = null; ui.confirmDeleteGasto = null; ui.confirmDeleteHouseYear = null;
     render();
   });
 
