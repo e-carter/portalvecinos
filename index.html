@@ -275,7 +275,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v15 · build 20260905-0800';
+  var APP_VERSION = 'v16 · build 20260905-0900';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -1092,7 +1092,10 @@
     }
     var status = houseStatus(h);
     var editing = ui.editingHouse===h.id;
-    var pays = sortedPayments(h);
+    // Los meses pagados se muestran solo del año seleccionado, según el año que
+    // cubre cada pago (periodo), no según la fecha en que se pagó: un pago
+    // atrasado de 2025 hecho en 2026 debe verse únicamente al seleccionar 2025.
+    var pays = sortedPayments(h).filter(function(p){ return (p.periodo||'').indexOf(String(ui.selectedYear)+'-')===0; });
 
     var infoHtml;
     if(editing){
@@ -1148,12 +1151,13 @@
         '</form>'+
       '</div>';
 
+    var historyHeadHtml = '<div class="section-head" style="margin-top:1.4rem;"><h2 style="font-size:1rem;">Historial de pagos '+ui.selectedYear+'<span class="count-badge">'+pays.length+'</span></h2></div>';
     var historyHtml;
     if(pays.length===0){
-      historyHtml = '<div class="empty" style="margin-top:1.1rem;"><p>Todavía no hay pagos registrados para esta casa.</p></div>';
+      historyHtml = '<div class="empty"><p>No hay pagos registrados para esta casa en '+ui.selectedYear+'.</p></div>';
     } else {
       historyHtml =
-        '<div class="pay-table" style="margin-top:1.4rem;">'+
+        '<div class="pay-table">'+
           '<div class="pay-row head"><span>Fecha</span><span>Mes cubierto</span><span>Monto</span><span>Nota</span><span></span></div>'+
           pays.map(function(p){
             var confirmingDel = ui.confirmDeletePayment===p.id;
@@ -1211,6 +1215,7 @@
       '<div class="detail-head"><h1>'+escapeHtml(h.numero)+'</h1>'+statusPill(status)+'</div>'+
       '<div class="card card-pad">'+infoHtml+monthsStatusStrip(h, ui.selectedYear, true)+'</div>'+
       payFormHtml+
+      historyHeadHtml+
       historyHtml+
       dangerHtml
     );
@@ -1567,7 +1572,9 @@
       var h = getHouse(c.houseId);
       if(h){
         var status = houseStatus(h);
-        var pays = sortedPayments(h);
+        // Igual que en el panel de administración: los meses pagados se listan
+        // solo del año seleccionado, según el año que cubre cada pago (periodo).
+        var pays = sortedPayments(h).filter(function(p){ return (p.periodo||'').indexOf(String(ui.selectedYear)+'-')===0; });
         resultHtml =
           '<div class="card card-pad" style="margin-top:1.5rem;">'+
             '<div class="detail-head" style="margin-bottom:0;flex-wrap:wrap;">'+
@@ -1582,9 +1589,10 @@
             '</div>'+
             monthsStatusStrip(h, ui.selectedYear, true)+
           '</div>'+
+          '<div class="section-head" style="margin-top:1.2rem;"><h2 style="font-size:1rem;">Pagos '+ui.selectedYear+'<span class="count-badge">'+pays.length+'</span></h2></div>'+
           (pays.length===0
-            ? '<div class="empty" style="margin-top:1rem;"><p>Todavía no hay pagos registrados para esta casa.</p></div>'
-            : '<div class="pay-table" style="margin-top:1rem;">'+
+            ? '<div class="empty"><p>No hay pagos registrados para esta casa en '+ui.selectedYear+'.</p></div>'
+            : '<div class="pay-table">'+
                 '<div class="pay-row head"><span>Fecha</span><span>Mes cubierto</span><span>Monto</span><span>Nota</span><span></span></div>'+
                 pays.map(function(p){
                   return (
