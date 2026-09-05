@@ -275,7 +275,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v14 · build 20260905-0700';
+  var APP_VERSION = 'v15 · build 20260905-0800';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -1274,11 +1274,11 @@
       }).join('');
 
       var gastosFilasAnio = gastosAnio.map(function(g){
-        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+(g.detalle ? '<div class="hint" style="white-space:pre-wrap;margin-top:.15rem;">'+escapeHtml(g.detalle)+'</div>' : '')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
       }).join('');
 
       var ingresosFilasAnio = ingresosAnio.map(function(g){
-        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+(g.detalle ? '<div class="hint" style="white-space:pre-wrap;margin-top:.15rem;">'+escapeHtml(g.detalle)+'</div>' : '')+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
       }).join('');
 
       var mesesLabelAnio = mesesTranscurridos<=0 ? 'aún no comienza' : ('enero a '+escapeHtml(monthLabel(year+'-'+pad(Math.min(mesesTranscurridos,12)))));
@@ -1352,11 +1352,11 @@
       }).join('');
 
       var gastosFilasHist = gastos.map(function(g){
-        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+escapeHtml(gastoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+(g.detalle ? '<div class="hint" style="white-space:pre-wrap;margin-top:.15rem;">'+escapeHtml(g.detalle)+'</div>' : '')+'</td><td class="tabular">'+escapeHtml(gastoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
       }).join('');
 
       var ingresosFilasHist = ingresos.map(function(g){
-        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+'</td><td class="tabular">'+escapeHtml(ingresoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
+        return '<tr><td class="tabular">'+escapeHtml(dateLabel(g.fecha))+'</td><td>'+escapeHtml(g.concepto||'—')+(g.detalle ? '<div class="hint" style="white-space:pre-wrap;margin-top:.15rem;">'+escapeHtml(g.detalle)+'</div>' : '')+'</td><td class="tabular">'+escapeHtml(ingresoYear(g))+'</td><td class="tabular">'+fmtMoney(g.monto)+'</td></tr>';
       }).join('');
 
       bodyHtml =
@@ -1429,6 +1429,7 @@
             '<div class="field"><label for="g-concepto">Concepto *</label><input id="g-concepto" name="concepto" required placeholder="Ej: mantención áreas verdes" value="'+escapeHtml(addVals.concepto||'')+'"></div>'+
             '<div class="field"><label for="g-monto">Monto *</label><input id="g-monto" name="monto" type="number" min="0" step="1" required inputmode="numeric" placeholder="15000" value="'+escapeHtml(addVals.monto||'')+'"></div>'+
           '</div>'+
+          '<div class="field" style="margin-top:.75rem;"><label for="g-detalle">Detalle (opcional)</label><textarea id="g-detalle" name="detalle" rows="2" style="resize:vertical;" placeholder="Información adicional: proveedor, N° de boleta o factura, motivo, etc.">'+escapeHtml(addVals.detalle||'')+'</textarea></div>'+
           (addErr ? '<div class="field-error">'+escapeHtml(addErr.message)+'</div>' : '')+
           '<div class="form-actions"><button type="submit" class="btn btn-primary">'+ICON.plus+' Agregar gasto</button></div>'+
         '</form>'+
@@ -1452,7 +1453,7 @@
             return (
               '<div class="gasto-row">'+
                 '<span data-label="Fecha" class="tabular">'+dateLabel(g.fecha)+'</span>'+
-                '<span data-label="Concepto">'+escapeHtml(g.concepto||'—')+'</span>'+
+                '<span data-label="Concepto">'+escapeHtml(g.concepto||'—')+(g.detalle ? '<div class="hint" style="white-space:pre-wrap;margin-top:.2rem;">'+escapeHtml(g.detalle)+'</div>' : '')+'</span>'+
                 '<span data-label="Monto" class="tabular">'+fmtMoney(g.monto)+'</span>'+
                 (readOnly ? '<span></span>' :
                   '<span class="pay-del">'+
@@ -1499,6 +1500,7 @@
             '<div class="field"><label for="i-concepto">Concepto *</label><input id="i-concepto" name="concepto" required placeholder="Ej: rifa, arriendo de la sede" value="'+escapeHtml(addVals.concepto||'')+'"></div>'+
             '<div class="field"><label for="i-monto">Monto *</label><input id="i-monto" name="monto" type="number" min="0" step="1" required inputmode="numeric" placeholder="15000" value="'+escapeHtml(addVals.monto||'')+'"></div>'+
           '</div>'+
+          '<div class="field" style="margin-top:.75rem;"><label for="i-detalle">Detalle (opcional)</label><textarea id="i-detalle" name="detalle" rows="2" style="resize:vertical;" placeholder="Información adicional: quién aportó, motivo, N° de comprobante, etc.">'+escapeHtml(addVals.detalle||'')+'</textarea></div>'+
           (addErr ? '<div class="field-error">'+escapeHtml(addErr.message)+'</div>' : '')+
           '<div class="form-actions"><button type="submit" class="btn btn-primary">'+ICON.plus+' Agregar ingreso</button></div>'+
         '</form>'+
@@ -1522,7 +1524,7 @@
             return (
               '<div class="gasto-row">'+
                 '<span data-label="Fecha" class="tabular">'+dateLabel(g.fecha)+'</span>'+
-                '<span data-label="Concepto">'+escapeHtml(g.concepto||'—')+'</span>'+
+                '<span data-label="Concepto">'+escapeHtml(g.concepto||'—')+(g.detalle ? '<div class="hint" style="white-space:pre-wrap;margin-top:.2rem;">'+escapeHtml(g.detalle)+'</div>' : '')+'</span>'+
                 '<span data-label="Monto" class="tabular">'+fmtMoney(g.monto)+'</span>'+
                 (readOnly ? '<span></span>' :
                   '<span class="pay-del">'+
@@ -1721,7 +1723,7 @@
   }
   function addGasto(data){
     STATE.gastos = STATE.gastos || [];
-    STATE.gastos.push({ id: uid(), fecha: data.fecha, concepto: (data.concepto||'').trim(), monto: Number(data.monto)||0 });
+    STATE.gastos.push({ id: uid(), fecha: data.fecha, concepto: (data.concepto||'').trim(), detalle: (data.detalle||'').trim(), monto: Number(data.monto)||0 });
     touch();
   }
   function deleteGastoById(id){
@@ -1730,7 +1732,7 @@
   }
   function addIngreso(data){
     STATE.ingresos = STATE.ingresos || [];
-    STATE.ingresos.push({ id: uid(), fecha: data.fecha, concepto: (data.concepto||'').trim(), monto: Number(data.monto)||0 });
+    STATE.ingresos.push({ id: uid(), fecha: data.fecha, concepto: (data.concepto||'').trim(), detalle: (data.detalle||'').trim(), monto: Number(data.monto)||0 });
     touch();
   }
   function deleteIngresoById(id){
