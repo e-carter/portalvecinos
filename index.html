@@ -239,6 +239,8 @@
   .month-pick-chip input{ position:absolute; opacity:0; width:1px; height:1px; }
   .month-pick-chip:has(input:checked){ background:var(--primary); color:var(--primary-ink); border-color:var(--primary); }
   .month-pick-chip:has(input:focus-visible){ outline:2px solid var(--accent); outline-offset:2px; }
+  .month-pick-chip.paid-locked{ background:var(--ok-bg); color:var(--ok-fg); border-color:transparent; cursor:default; opacity:.85; }
+  .month-pick-chip.paid-locked svg{ width:.9em; height:.9em; vertical-align:-0.1em; }
   @media (max-width:480px){ .month-picker{ grid-template-columns:repeat(3,1fr); } }
 
   .report-page{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:1.5rem 1.75rem 2rem; }
@@ -256,6 +258,8 @@
   .report-table{ width:100%; border-collapse:collapse; font-size:.85rem; }
   .report-table th, .report-table td{ text-align:left; padding:.5rem .6rem; border-bottom:1px solid var(--border); }
   .report-table th{ font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-faint); font-weight:600; }
+  .report-table tbody tr[data-action="open-house"]{ cursor:pointer; }
+  .report-table tbody tr[data-action="open-house"]:hover td{ background:var(--surface-2); }
   @media print{
     .no-print{ display:none !important; }
     body{ background:#fff; }
@@ -299,7 +303,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v24 · build 20260905-2400';
+  var APP_VERSION = 'v26 · build 20260906-0200';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -730,15 +734,20 @@
       }).join('') + '</div>'
     );
   }
-  function monthPickerHtml(name, selectedList, year){
+  // paidSet (opcional): objeto {periodo:true} con los meses que ya tienen un
+  // pago registrado. Esos meses se muestran bloqueados (no se pueden volver a
+  // marcar) para no poder pagar dos veces el mismo mes; solo vuelven a
+  // habilitarse si el administrador borra ese pago desde el historial.
+  function monthPickerHtml(name, selectedList, year, paidSet){
     year = year || currentYearNumber();
     var months = monthsOfYear(year);
     return '<div class="month-picker">' + months.map(function(m){
-      var checked = selectedList.indexOf(m)>=0;
+      var isPaid = !!(paidSet && paidSet[m]);
+      var checked = !isPaid && selectedList.indexOf(m)>=0;
       return (
-        '<label class="month-pick-chip">'+
-          '<input type="checkbox" name="'+name+'" value="'+m+'"'+(checked?' checked':'')+'>'+
-          '<span>'+escapeHtml(monthShortLabel(m))+'</span>'+
+        '<label class="month-pick-chip'+(isPaid?' paid-locked':'')+'"'+(isPaid?' title="Este mes ya tiene un pago registrado"':'')+'>'+
+          '<input type="checkbox" name="'+name+'" value="'+m+'"'+(checked?' checked':'')+(isPaid?' disabled':'')+'>'+
+          '<span>'+escapeHtml(monthShortLabel(m))+(isPaid?' '+ICON.check:'')+'</span>'+
         '</label>'
       );
     }).join('') + '</div>';
@@ -1074,7 +1083,7 @@
       var mesesEsperadosAnio = houseExpectedMonthsInYear(h, selYear);
       var estadoAnio = houseStatusForYear(h, selYear);
       return (
-        '<tr>'+
+        '<tr data-action="open-house" data-house="'+h.id+'" role="link" tabindex="0">'+
           '<td>'+escapeHtml(h.numero)+'</td>'+
           '<td>'+escapeHtml(h.responsable||'—')+'</td>'+
           '<td class="tabular">'+fmtMoney(h.cuota)+'</td>'+
@@ -1376,14 +1385,21 @@
 
     var payErr = (ui.formError && ui.formError.form==='add-payment') ? ui.formError : null;
     var payVals = (payErr && payErr.values) ? payErr.values : {};
-    var payPeriodos = payErr ? (payErr.periodos||[]) : (ui.selectedYear===currentYearNumber() ? [currentMonthKey()] : []);
+    // Meses que ya tienen un pago registrado (de cualquier año): se bloquean en
+    // el selector de abajo para no poder pagar dos veces el mismo mes. Solo se
+    // vuelven a habilitar si el administrador borra ese pago del historial.
+    var payCovered = {};
+    monthsCovered(h).forEach(function(m){ payCovered[m] = true; });
+    var payDefaultMonth = currentMonthKey();
+    var payPeriodos = payErr ? (payErr.periodos||[]) : ((ui.selectedYear===currentYearNumber() && !payCovered[payDefaultMonth]) ? [payDefaultMonth] : []);
     var payFormHtml = readOnly ? '' :
       '<div class="card card-pad" style="margin-top:1.1rem;">'+
         '<h2 style="font-size:1rem;margin-bottom:.4rem;">Registrar pago</h2>'+
         '<form data-action="add-payment" data-house="'+h.id+'">'+
           '<div class="field" style="margin-bottom:1rem;">'+
             '<label>Mes(es) que cubre * <span class="hint" style="font-weight:400;">(año '+ui.selectedYear+')</span></label>'+
-            monthPickerHtml('periodos', payPeriodos, ui.selectedYear)+
+            monthPickerHtml('periodos', payPeriodos, ui.selectedYear, payCovered)+
+            '<div class="hint" style="margin-top:.4rem;">Los meses en verde ya tienen un pago registrado: no se pueden volver a marcar. Para corregir un pago, bórralo primero desde el historial de abajo.</div>'+
           '</div>'+
           '<div class="field-grid">'+
             '<div class="field"><label for="p-fecha">Fecha de pago</label><input id="p-fecha" name="fecha" type="date" value="'+escapeHtml(payVals.fecha||todayISO())+'" required></div>'+
@@ -2038,14 +2054,25 @@
       ? (Number(h.cuota)||Number(STATE.meta&&STATE.meta.cuotaDefault)||0)
       : (Number(data.monto)||0);
     var nota = (data.nota||'').trim();
+    // Nunca se registra un segundo pago para un mes que ya tiene uno: el
+    // selector ya bloquea los meses pagados, pero se revalida aquí igual por
+    // si el formulario llega alterado. Para "corregir" un mes hay que borrar
+    // primero su pago existente desde el historial.
+    var yaPagados = {};
+    h.payments.forEach(function(p){ if(p.periodo) yaPagados[p.periodo]=true; });
     periodos.forEach(function(periodo){
+      if(yaPagados[periodo]) return;
       h.payments.push({ id: uid(), fecha:data.fecha, periodo:periodo, monto:amount, nota:nota });
+      yaPagados[periodo] = true;
     });
     touch();
   }
   function quickPay(houseId){
     var h = getHouse(houseId); if(!h) return;
     h.payments = h.payments || [];
+    // Evita registrar dos veces el pago del mes actual (el botón ya solo se
+    // muestra cuando el mes no está pagado, pero se revalida igual).
+    if(monthsCovered(h).indexOf(currentMonthKey())>=0) return;
     h.payments.push({ id: uid(), fecha: todayISO(), periodo: currentMonthKey(), monto: Number(h.cuota)||0, nota:'' });
     touch();
   }
@@ -2288,6 +2315,16 @@
       if(!data.fecha){ ui.formError = { form:'add-payment', message:'Ingresa la fecha de pago.', values:data, periodos:periodos }; render(); return; }
       if(periodos.length===0){ ui.formError = { form:'add-payment', message:'Selecciona al menos un mes que cubre el pago.', values:data, periodos:periodos }; render(); return; }
       if(data.monto!=='' && (isNaN(Number(data.monto)) || Number(data.monto)<0)){ ui.formError = { form:'add-payment', message:'El monto ingresado no es válido.', values:data, periodos:periodos }; render(); return; }
+      // El selector ya bloquea los meses con pago existente, pero se revalida
+      // aquí para no permitir un doble pago del mismo mes si el formulario
+      // llega alterado.
+      var houseForPay = getHouse(houseId);
+      var yaCubiertos = houseForPay ? monthsCovered(houseForPay) : [];
+      if(periodos.some(function(p){ return yaCubiertos.indexOf(p)>=0; })){
+        ui.formError = { form:'add-payment', message:'Uno o más meses seleccionados ya tienen un pago registrado. Bórralo primero desde el historial si necesitas corregirlo.', values:data, periodos:periodos };
+        render();
+        return;
+      }
       ui.formError = null;
       addPayment(houseId, data, periodos);
       persist();
