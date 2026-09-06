@@ -303,7 +303,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v26 · build 20260906-0200';
+  var APP_VERSION = 'v28 · build 20260906-0400';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -1620,20 +1620,26 @@
       var totalGastosHist = totalGastosList(gastos);
       var totalIngresosHist = totalIngresosList(ingresos);
       var balanceHist = totalHistorico + totalIngresosHist - totalGastosHist;
-      var yearActual = currentYearNumber();
-      var mesActual = currentMonthNumber();
-      var mesActualLabel = monthLabel(yearActual+'-'+pad(mesActual));
-      var totalPagadoEsteAnio = houses.reduce(function(s,h){ return s + housePaidInYear(h, yearActual); }, 0);
-      var totalEsperado = houses.reduce(function(s,h){ return s + houseExpectedToDate(h, yearActual); }, 0);
-      var diferencia = totalPagadoEsteAnio - totalEsperado;
-
-      // Los conteos de "al día/pendientes/sin pagos" solo consideran casas que
-      // participan actualmente; una casa que ya no participa no cuenta como
-      // pendiente ni sin pagos.
-      var housesActivasHist = houses.filter(function(h){ return houseIsActiveInYear(h, yearActual); });
-      var alDia = housesActivasHist.filter(function(h){ return houseStatus(h)==='al-dia'; });
-      var pendientes = housesActivasHist.filter(function(h){ return houseStatus(h)==='pendiente'; });
-      var sinPagos = housesActivasHist.filter(function(h){ return houseStatus(h)==='sin-pagos'; });
+      // Para cada año con casas participantes se muestra cuánto se recaudó
+      // versus cuánto correspondía recaudar a la fecha (esto ya descuenta
+      // los meses excluidos y respeta el período de participación de cada
+      // casa, igual que en el reporte de un año específico).
+      var aniosRecaudo = years.filter(function(y){
+        return houses.some(function(h){ return houseIsActiveInYear(h, y); });
+      });
+      var filasRecaudoAnioHtml = aniosRecaudo.map(function(y){
+        var housesAnioY = houses.filter(function(h){ return houseIsActiveInYear(h, y); });
+        var pagadoY = housesAnioY.reduce(function(s,h){ return s + housePaidInYear(h, y); }, 0);
+        var esperadoY = housesAnioY.reduce(function(s,h){ return s + houseExpectedToDate(h, y); }, 0);
+        var difY = pagadoY - esperadoY;
+        return (
+          '<tr>'+
+            '<td>'+y+'</td>'+
+            '<td class="tabular">'+fmtMoney(pagadoY)+' de '+fmtMoney(esperadoY)+'</td>'+
+            '<td class="tabular'+(difY<0?' report-neg':'')+'">'+fmtMoney(difY)+'</td>'+
+          '</tr>'
+        );
+      }).join('');
 
       var filasHtml = houses.map(function(h){
         var status = houseStatus(h);
@@ -1668,14 +1674,17 @@
           '<div><span class="k">Otros ingresos histórico</span><span class="v tabular">'+fmtMoney(totalIngresosHist)+'</span></div>'+
           '<div><span class="k">Gastos histórico</span><span class="v tabular">'+fmtMoney(totalGastosHist)+'</span></div>'+
           '<div><span class="k">Balance histórico</span><span class="v tabular'+(balanceHist<0?' report-neg':'')+'">'+fmtMoney(balanceHist)+'</span></div>'+
-          '<div><span class="k">Recaudado en '+yearActual+' (a '+escapeHtml(mesActualLabel)+')</span><span class="v tabular">'+fmtMoney(totalPagadoEsteAnio)+'</span></div>'+
-          '<div><span class="k">Debería estar pagado a la fecha</span><span class="v tabular">'+fmtMoney(totalEsperado)+'</span></div>'+
-          '<div><span class="k">Diferencia</span><span class="v tabular'+(diferencia<0?' report-neg':'')+'">'+fmtMoney(diferencia)+'</span></div>'+
-          '<div><span class="k">Casas al día</span><span class="v tabular">'+alDia.length+' / '+housesActivasHist.length+'</span></div>'+
-          '<div><span class="k">Casas pendientes</span><span class="v tabular">'+pendientes.length+'</span></div>'+
-          '<div><span class="k">Casas sin pagos</span><span class="v tabular">'+sinPagos.length+'</span></div>'+
         '</div>'+
         '<div class="hint" style="margin:.3rem 0 1rem;">Este reporte muestra el total histórico acumulado (todos los años). Usa los botones de arriba para ver el detalle de un año específico.</div>'+
+        '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Recaudado por año</h2>'+
+        '<div class="hint" style="margin:0 0 .6rem;">Por cada año se muestra lo recaudado frente a lo que correspondía recaudar a la fecha (según los meses transcurridos, la participación de cada casa y los meses excluidos).</div>'+
+        '<div style="overflow-x:auto;">'+
+        '<table class="report-table">'+
+          '<thead><tr><th>Año</th><th>Recaudado</th><th>Diferencia</th></tr></thead>'+
+          '<tbody>'+(filasRecaudoAnioHtml || '<tr><td colspan="3">No hay años con casas participantes.</td></tr>')+'</tbody>'+
+        '</table>'+
+        '</div>'+
+        '<h2 style="font-size:1.05rem;margin:1.6rem 0 .6rem;">Recaudado histórico de casas</h2>'+
         '<div style="overflow-x:auto;">'+
         '<table class="report-table">'+
           '<thead><tr><th>Casa</th><th>Responsable</th><th>RUT</th><th>Cuota</th><th>Pagado histórico</th><th>Estado actual</th></tr></thead>'+
