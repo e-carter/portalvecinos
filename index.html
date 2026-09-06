@@ -214,6 +214,7 @@
   }
   .month-chip.paid{ background:var(--ok-bg); color:var(--ok-fg); }
   .month-chip.unpaid{ background:var(--pending-bg); color:var(--pending-fg); }
+  .month-chip.overdue{ background:var(--danger-soft); color:var(--danger); }
   .month-chip.excluded{ background:var(--neutral-bg); color:var(--neutral-fg); }
   .month-chip .mc-icon svg{ width:1.1em; height:1.1em; }
   @media (max-width:480px){ .months-strip{ grid-template-columns:repeat(3,1fr); } }
@@ -303,7 +304,7 @@
 
   // Revisa esta versión en la pantalla de entrada del administrador para
   // confirmar que se está viendo la última copia publicada.
-  var APP_VERSION = 'v28 · build 20260906-0400';
+  var APP_VERSION = 'v29 · build 20260906-0500';
 
   /* ---------- state ---------- */
   var stateEl = document.getElementById('app-state');
@@ -717,6 +718,10 @@
     var covered = {};
     monthsCovered(h).forEach(function(m){ covered[m] = true; });
     var months = monthsOfYear(year);
+    // Un mes no pagado se pinta rojo (atrasado) si ya venció, o naranjo si
+    // todavía no le corresponde vencer, usando el mismo criterio de "meses
+    // transcurridos" que ya se usa para calcular si una casa está al día.
+    var mesesTranscurridos = monthsElapsedInYear(year);
     return (
       headerHtml+
       '<div class="months-strip">' + months.map(function(m){
@@ -724,7 +729,8 @@
         // Un mes excluido se ve neutro (ni verde ni rojo): no se le exige pago.
         // Si además tiene un pago registrado, se muestra igual como pagado.
         var excluded = !paid && isMonthExcluded(h, m);
-        var cls = paid ? 'paid' : (excluded ? 'excluded' : 'unpaid');
+        var monthNum = Number(m.split('-')[1]);
+        var cls = paid ? 'paid' : (excluded ? 'excluded' : (monthNum<=mesesTranscurridos ? 'overdue' : 'unpaid'));
         return (
           '<div class="month-chip '+cls+'">'+
             '<span class="mc-icon">'+(paid?ICON.check:ICON.dash)+'</span>'+
